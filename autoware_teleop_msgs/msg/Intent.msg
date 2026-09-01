@@ -1,6 +1,7 @@
 # Operator intent for one control tick (mirrors autoware_teleop_web/app/schemas.py).
-# The node subscribes to this and is the single authority publishing
-# /control/command/*, applying the deadman watchdog to any source (keyboard or web).
+# The node subscribes to this and is the single authority publishing the
+# /control/command topics, applying the deadman watchdog to any source
+# (keyboard or web).
 
 builtin_interfaces/Time stamp
 
