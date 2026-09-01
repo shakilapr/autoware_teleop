@@ -108,6 +108,18 @@ class TeleopRosBridge(Node):
         self._steer = 0.0
         self._gear = GearCommand.NEUTRAL
         self._estop = 0
+        self._turn = 0
+        self._hazard = False
+        self._operation_mode = 0
+        self._manual_mode = 2
+        self._engage = False
+        self._test_mode = 0
+        self._bp = {
+            "enable_mtr": True, "enable_ses": True, "enable_seb": True,
+            "send_mode_auto": True, "sim_mode": False, "publish_brake_diag": False,
+            "max_speed_forward": 3.0, "max_speed_reverse": 0.5,
+            "max_steering_angle": 0.747, "max_deceleration": 5.0,
+        }
         self._rate = 10.0
         self._running = False
         self._stream_thread: threading.Thread | None = None
@@ -131,6 +143,33 @@ class TeleopRosBridge(Node):
         self._gear = GEAR_MAP.get(gear, GearCommand.NEUTRAL)
         self._estop = max(0, int(intent.get("estop", 0)))
 
+        # New fields (light/op-mode/test-mode/bridge params) — cached and
+        # forwarded verbatim on the next intent tick.
+        self._turn = {"NONE": 0, "LEFT": 1, "RIGHT": 2}.get(
+            intent.get("turn_indicator", "NONE"), 0)
+        self._hazard = bool(intent.get("hazard", False))
+        self._operation_mode = {"STOP": 0, "AUTONOMOUS": 1, "LOCAL": 2, "REMOTE": 3}.get(
+            intent.get("operation_mode", "STOP"), 0)
+        self._manual_mode = {"PEDALS": 0, "ACCELERATION": 1, "VELOCITY": 2}.get(
+            intent.get("manual_control_mode", "VELOCITY"), 2)
+        self._engage = bool(intent.get("engage", False))
+        self._test_mode = {"manual": 0, "auto": 1, "sim": 2,
+                           "mtr_only": 3, "ses_only": 4, "seb_only": 5}.get(
+            intent.get("test_mode", "manual"), 0)
+        bp = intent.get("bridge_params", {})
+        self._bp = {
+            "enable_mtr": bool(bp.get("enable_mtr", True)),
+            "enable_ses": bool(bp.get("enable_ses", True)),
+            "enable_seb": bool(bp.get("enable_seb", True)),
+            "send_mode_auto": bool(bp.get("send_mode_auto", True)),
+            "sim_mode": bool(bp.get("sim_mode", False)),
+            "publish_brake_diag": bool(bp.get("publish_brake_diag", False)),
+            "max_speed_forward": float(bp.get("max_speed_forward", 3.0)),
+            "max_speed_reverse": float(bp.get("max_speed_reverse", 0.5)),
+            "max_steering_angle": float(bp.get("max_steering_angle", 0.747)),
+            "max_deceleration": float(bp.get("max_deceleration", 5.0)),
+        }
+
     def set_estop_counter(self, count: int) -> None:
         self._estop = max(0, int(count))
 
@@ -141,6 +180,23 @@ class TeleopRosBridge(Node):
         msg.brake = float(self._brake)
         msg.steer = float(self._steer)
         msg.gear = self._gear
+        msg.turn_indicator = self._turn
+        msg.hazard = self._hazard
+        msg.operation_mode = self._operation_mode
+        msg.manual_control_mode = self._manual_mode
+        msg.engage = self._engage
+        msg.test_mode = self._test_mode
+        bp = self._bp
+        msg.enable_mtr = bp["enable_mtr"]
+        msg.enable_ses = bp["enable_ses"]
+        msg.enable_seb = bp["enable_seb"]
+        msg.send_mode_auto = bp["send_mode_auto"]
+        msg.sim_mode = bp["sim_mode"]
+        msg.publish_brake_diag = bp["publish_brake_diag"]
+        msg.max_speed_forward = float(bp["max_speed_forward"])
+        msg.max_speed_reverse = float(bp["max_speed_reverse"])
+        msg.max_steering_angle = float(bp["max_steering_angle"])
+        msg.max_deceleration = float(bp["max_deceleration"])
         msg.estop = self._estop
         self.pub_intent.publish(msg)
 

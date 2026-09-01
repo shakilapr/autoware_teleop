@@ -66,7 +66,9 @@ def test_discrete_intent_counters():
 
 def test_telemetry_defaults():
     t = Telemetry()
-    assert t.mode.mode == "stop"
+    assert t.mode.drive_mode == "stop"
+    assert t.mode.operation_mode == "STOP"
+    assert t.mode.manual_control_mode == "VELOCITY"
     assert t.vehicle.velocity == 0.0
     assert t.timestamp == 0
 
@@ -75,9 +77,11 @@ def test_telemetry_roundtrip():
     t = Telemetry()
     t.vehicle.velocity = 1.5
     t.vehicle.gear = "DRIVE"
+    t.vehicle.hazard = True
     t.watchdog_tripped = True
     t.timestamp = 1700000000000
     d = t.model_dump()
     back = Telemetry.model_validate(d)
     assert back.vehicle.velocity == 1.5
+    assert back.vehicle.hazard is True
     assert back.watchdog_tripped is True

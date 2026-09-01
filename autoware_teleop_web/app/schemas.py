@@ -27,6 +27,23 @@ from pydantic import BaseModel, Field
 # Intent (client -> node), one object per control tick
 # ---------------------------------------------------------------------------
 GearLiteral = Literal["PARK", "DRIVE", "REVERSE", "NEUTRAL"]
+OperationModeLiteral = Literal["STOP", "AUTONOMOUS", "LOCAL", "REMOTE"]
+ManualModeLiteral = Literal["PEDALS", "ACCELERATION", "VELOCITY"]
+TurnLiteral = Literal["NONE", "LEFT", "RIGHT"]
+TestModeLiteral = Literal["manual", "auto", "sim", "mtr_only", "ses_only", "seb_only"]
+
+
+class BridgeParams(BaseModel):
+    enable_mtr: bool = True
+    enable_ses: bool = True
+    enable_seb: bool = True
+    send_mode_auto: bool = True
+    sim_mode: bool = False
+    publish_brake_diag: bool = False
+    max_speed_forward: float = 3.0
+    max_speed_reverse: float = 0.5
+    max_steering_angle: float = 0.747
+    max_deceleration: float = 5.0
 
 
 class ControlIntent(BaseModel):
@@ -60,6 +77,13 @@ class Intent(BaseModel):
     brake: float = Field(default=0.0, ge=0.0, le=1.0)
     steer: float = Field(default=0.0, ge=-1.0, le=1.0)
     gear: GearLiteral = Field(default="NEUTRAL")
+    turn_indicator: TurnLiteral = Field(default="NONE")
+    hazard: bool = False
+    operation_mode: OperationModeLiteral = Field(default="STOP")
+    manual_control_mode: ManualModeLiteral = Field(default="VELOCITY")
+    engage: bool = False
+    test_mode: TestModeLiteral = Field(default="manual")
+    bridge_params: BridgeParams = BridgeParams()
     mode_cycle: int = 0
     toggle_auto: int = 0
     reset_pose: int = 0
@@ -70,15 +94,18 @@ class Intent(BaseModel):
 # Telemetry (node -> client), every control tick
 # ---------------------------------------------------------------------------
 class ModeState(BaseModel):
-    operation_mode: str = "STOP"       # STOP / AUTONOMOUS / LOCAL / REMOTE
-    mode: str = "stop"                 # active drive mode
+    operation_mode: OperationModeLiteral = "STOP"     # STOP / AUTONOMOUS / LOCAL / REMOTE
+    manual_control_mode: ManualModeLiteral = "VELOCITY"
+    drive_mode: str = "stop"                 # active drive mode
     mode_status: str = ""
 
 
 class VehicleState(BaseModel):
     velocity: float = 0.0              # m/s
     steer_angle: float = 0.0           # rad
-    gear: str = "NEUTRAL"
+    gear: GearLiteral = "NEUTRAL"
+    turn_indicator: TurnLiteral = "NONE"
+    hazard: bool = False
 
 
 class TargetState(BaseModel):
@@ -99,6 +126,7 @@ class Telemetry(BaseModel):
     vehicle: VehicleState = VehicleState()
     target: TargetState = TargetState()
     shift: ShiftState = ShiftState()
+    test_mode: TestModeLiteral = "manual"
     watchdog_tripped: bool = False
     info: str = ""
     timestamp: int = 0                  # ms epoch
