@@ -8,6 +8,7 @@ dependencies = [
     "uvicorn>=0.20",
     "pydantic>=2.0",
     "rclpy",
+    "autoware_teleop_msgs",
 ]
 
 [project.optional-dependencies]

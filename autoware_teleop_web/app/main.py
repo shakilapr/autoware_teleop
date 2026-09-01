@@ -104,17 +104,14 @@ async def ws_endpoint(ws: WebSocket):
                 continue
             if _bridge is not None:
                 _bridge.set_intent(intent.model_dump())
-                if intent.estop % 2 == 1:  # toggle semantics on odd count
-                    _bridge.set_emergency(True)
-                else:
-                    _bridge.set_emergency(False)
             # push telemetry back each intent tick
             await ws.send_text(_telemetry_payload())
     except WebSocketDisconnect:
         logger.info("ws client disconnected")
+        # Leave the estop counter as-is; the node's deadman will brake because
+        # no fresh intent arrives.
         if _bridge is not None:
             _bridge.set_intent({"throttle": 0, "brake": 0, "steer": 0, "gear": "NEUTRAL"})
-            _bridge.set_emergency(False)
 
 
 # Serve built SPA if present, else a fallback HTML page.
