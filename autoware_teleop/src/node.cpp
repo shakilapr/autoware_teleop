@@ -201,6 +201,14 @@ void TeleopNode::on_intent(const autoware_teleop_msgs::msg::Intent::SharedPtr ms
   {
     std::lock_guard<std::mutex> lock(mutex_);
     intent_ = intent;
+    // Bridge test-mode toggles: the node routes these to the direct gateway by
+    // selecting which actuators to command. sim_mode forces zero commanded
+    // motion (actuators stay off) while still exercising the loop.
+    test_mode_ = msg->test_mode;
+    enable_mtr_ = msg->enable_mtr;
+    enable_ses_ = msg->enable_ses;
+    enable_seb_ = msg->enable_seb;
+    sim_mode_ = msg->sim_mode;
   }
   last_intent_ms_.store(intent.timestamp_ms, std::memory_order_relaxed);
   emergency_.store(intent.estop, std::memory_order_relaxed);
@@ -220,13 +228,22 @@ Control TeleopNode::make_control()
 {
   Control msg;
   std::lock_guard<std::mutex> lock(mutex_);
-  msg.lateral.steering_tire_angle =
-    static_cast<float>(intent_.steer * params_.max_steering_angle);
-  double vel = intent_.throttle >= 0.0
-    ? intent_.throttle * params_.max_speed_forward
-    : intent_.throttle * params_.max_speed_reverse;
+
+  // sim_mode: exercise the loop but command no motion.
+  const bool sim = sim_mode_.load(std::memory_order_relaxed);
+  const bool mtr_on = enable_mtr_.load(std::memory_order_relaxed);
+  const bool ses_on = enable_ses_.load(std::memory_order_relaxed);
+
+  msg.lateral.steering_tire_angle = static_cast<float>(
+    ses_on && !sim ? intent_.steer * params_.max_steering_angle : 0.0);
+  double vel = 0.0;
+  if (mtr_on && !sim) {
+    vel = intent_.throttle >= 0.0
+      ? intent_.throttle * params_.max_speed_forward
+      : intent_.throttle * params_.max_speed_reverse;
+  }
   msg.longitudinal.velocity = static_cast<float>(vel);
-  if (intent_.brake > 0.0) {
+  if (!sim && intent_.brake > 0.0) {
     msg.longitudinal.acceleration = static_cast<float>(-intent_.brake * params_.max_brake_accel);
     msg.longitudinal.is_defined_acceleration = true;
   } else {

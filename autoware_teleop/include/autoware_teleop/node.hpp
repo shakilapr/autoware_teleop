@@ -109,6 +109,12 @@ private:
   VehicleState vehicle_;
   std::atomic<bool> emergency_{false};
   std::atomic<int64_t> last_intent_ms_{0};
+  // Test-mode / bridge-param state (from Intent)
+  std::atomic<uint8_t> test_mode_{0};
+  std::atomic<bool> enable_mtr_{true};
+  std::atomic<bool> enable_ses_{true};
+  std::atomic<bool> enable_seb_{true};
+  std::atomic<bool> sim_mode_{false};
 
   TeleopParams params_;
 
