@@ -1,0 +1,9 @@
+/**:
+  ros__parameters:
+    control_rate: 10.0
+    arrival_timeout_ms: 500.0
+    max_speed_forward: 3.0
+    max_speed_reverse: 0.5
+    max_steering_angle: 0.747
+    max_brake_accel: 5.0
+    gear_initial: "NEUTRAL"

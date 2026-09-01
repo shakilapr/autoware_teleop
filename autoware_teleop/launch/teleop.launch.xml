@@ -1,0 +1,7 @@
+<?xml version="1.0"?>
+<launch>
+  <arg name="config_file" default="$(find-pkg-share autoware_teleop)/config/teleop.yaml"/>
+  <node pkg="autoware_teleop" exec="autoware_teleop" name="autoware_teleop" output="screen">
+    <param from="$(var config_file)" allow_substs="true"/>
+  </node>
+</launch>

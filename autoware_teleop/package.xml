@@ -1,0 +1,32 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>autoware_teleop</name>
+  <version>0.1.0</version>
+  <description>
+    Standalone Autoware Universe teleoperation extension. A lifecycle manual-control
+    node that injects operator commands into the Autoware vehicle interface and
+    renders live vehicle telemetry. Supports the direct vehicle-interface path and
+    (planned) the ADAPI external-command path.
+  </description>
+  <maintainer email="dev@etrike.local">E-Trike Dev</maintainer>
+  <license>Apache-2.0</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <depend>rclcpp</depend>
+  <depend>rclcpp_lifecycle</depend>
+  <depend>autoware_control_msgs</depend>
+  <depend>autoware_vehicle_msgs</depend>
+  <depend>tier4_vehicle_msgs</depend>
+
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+
+  <test_depend>ament_lint_auto</test_depend>
+  <test_depend>ament_lint_common</test_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>
