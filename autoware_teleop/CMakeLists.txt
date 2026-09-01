@@ -11,24 +11,26 @@ find_package(rclcpp_lifecycle REQUIRED)
 find_package(autoware_control_msgs REQUIRED)
 find_package(autoware_vehicle_msgs REQUIRED)
 find_package(tier4_vehicle_msgs REQUIRED)
+find_package(autoware_teleop_msgs REQUIRED)
 
 include_directories(include)
 
-add_executable(autoware_teleop
+add_executable(autoware_teleop_node
   src/main.cpp
   src/node.cpp
 )
 
-ament_target_dependencies(autoware_teleop
+ament_target_dependencies(autoware_teleop_node
   rclcpp
   rclcpp_lifecycle
   autoware_control_msgs
   autoware_vehicle_msgs
   tier4_vehicle_msgs
+  autoware_teleop_msgs
 )
 
 install(TARGETS
-  autoware_teleop
+  autoware_teleop_node
   DESTINATION lib/${PROJECT_NAME}
 )
 

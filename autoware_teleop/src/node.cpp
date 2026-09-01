@@ -57,6 +57,12 @@ TeleopNode::TeleopNode(const rclcpp::NodeOptions & options)
     "/vehicle/status/gear_status", rclcpp::QoS(1),
     [this](const GearReport::SharedPtr m) {on_gear(m);});
 
+  // Intent arrives from keyboard or the web proxy. The node is the single
+  // authority publishing /control/command/*; the deadman applies to all sources.
+  sub_intent_ = create_subscription<autoware_teleop_msgs::msg::Intent>(
+    "~/intent", rclcpp::QoS(10),
+    [this](const autoware_teleop_msgs::msg::Intent::SharedPtr m) {on_intent(m);});
+
   RCLCPP_INFO(get_logger(), "TeleopNode constructed.");
 }
 
@@ -179,6 +185,25 @@ void TeleopNode::on_gear(const GearReport::SharedPtr msg)
 {
   std::lock_guard<std::mutex> lock(mutex_);
   vehicle_.gear = msg->report;
+}
+
+void TeleopNode::on_intent(const autoware_teleop_msgs::msg::Intent::SharedPtr msg)
+{
+  Intent intent;
+  intent.throttle = msg->throttle;
+  intent.brake = msg->brake;
+  intent.steer = msg->steer;
+  intent.gear = msg->gear;
+  intent.estop = (msg->estop % 2) == 1;   // odd = armed
+  intent.timestamp_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+    std::chrono::steady_clock::now().time_since_epoch()).count();
+
+  {
+    std::lock_guard<std::mutex> lock(mutex_);
+    intent_ = intent;
+  }
+  last_intent_ms_.store(intent.timestamp_ms, std::memory_order_relaxed);
+  emergency_.store(intent.estop, std::memory_order_relaxed);
 }
 
 // ---- control ----

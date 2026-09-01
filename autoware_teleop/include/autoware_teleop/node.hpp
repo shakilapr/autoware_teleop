@@ -30,7 +30,7 @@
 #include <autoware_vehicle_msgs/msg/steering_report.hpp>
 #include <autoware_vehicle_msgs/msg/velocity_report.hpp>
 #include <tier4_vehicle_msgs/msg/vehicle_emergency_stamped.hpp>
-
+#include <autoware_teleop_msgs/msg/intent.hpp>
 namespace autoware_teleop
 {
 
@@ -96,6 +96,7 @@ private:
   rclcpp::Subscription<autoware_vehicle_msgs::msg::VelocityReport>::SharedPtr sub_velocity_;
   rclcpp::Subscription<autoware_vehicle_msgs::msg::SteeringReport>::SharedPtr sub_steering_;
   rclcpp::Subscription<autoware_vehicle_msgs::msg::GearReport>::SharedPtr sub_gear_;
+  rclcpp::Subscription<autoware_teleop_msgs::msg::Intent>::SharedPtr sub_intent_;
 
   // --- control timer + telemetry thread ---
   rclcpp::TimerBase::SharedPtr timer_;
@@ -118,6 +119,7 @@ private:
   void on_velocity(const autoware_vehicle_msgs::msg::VelocityReport::SharedPtr msg);
   void on_steering(const autoware_vehicle_msgs::msg::SteeringReport::SharedPtr msg);
   void on_gear(const autoware_vehicle_msgs::msg::GearReport::SharedPtr msg);
+  void on_intent(const autoware_teleop_msgs::msg::Intent::SharedPtr msg);
   autoware_control_msgs::msg::Control make_control();
   bool intent_fresh() const;
 };

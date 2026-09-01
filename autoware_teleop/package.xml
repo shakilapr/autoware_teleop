@@ -19,6 +19,7 @@
   <depend>autoware_control_msgs</depend>
   <depend>autoware_vehicle_msgs</depend>
   <depend>tier4_vehicle_msgs</depend>
+  <depend>autoware_teleop_msgs</depend>
 
   <exec_depend>launch</exec_depend>
   <exec_depend>launch_ros</exec_depend>
