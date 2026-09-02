@@ -9,31 +9,53 @@ export default function App() {
   const connect = useTeleop((s) => s.connect);
   const keyDown = useTeleop((s) => s.keyDown);
   const keyUp = useTeleop((s) => s.keyUp);
+  const releaseAll = useTeleop((s) => s.releaseAll);
 
   useEffect(() => { connect(); }, [connect]);
 
   // Global keyboard: WASD/Space drive, only active in keyboard mode.
   useEffect(() => {
+    const DRIVE_KEYS = ["w", "a", "s", "d", " "];
+    const isTypingTarget = (t: EventTarget | null) =>
+      t instanceof HTMLElement &&
+      (t.tagName === "INPUT" || t.tagName === "SELECT" || t.tagName === "TEXTAREA" || t.isContentEditable);
+
     const onDown = (e: KeyboardEvent) => {
+      if (useTeleop.getState().intent.input_mode !== "keyboard") return;
+      if (isTypingTarget(e.target)) return;
       const k = e.key.toLowerCase();
-      if (["w", "a", "s", "d", " "].includes(k)) {
+      if (DRIVE_KEYS.includes(k)) {
         e.preventDefault();
         keyDown(k === " " ? "space" : k);
       }
     };
     const onUp = (e: KeyboardEvent) => {
+      if (useTeleop.getState().intent.input_mode !== "keyboard") return;
       const k = e.key.toLowerCase();
-      if (["w", "a", "s", "d", " "].includes(k)) {
+      if (DRIVE_KEYS.includes(k)) {
         keyUp(k === " " ? "space" : k);
       }
     };
+
+    // Safety: leaving the tab / losing focus must not leave the vehicle
+    // holding a command. This applies in keyboard mode AND raw (blur can
+    // happen mid-drag on sliders too).
+    const onBlur = () => releaseAll();
+    const onVis = () => {
+      if (document.hidden) releaseAll();
+    };
+
     window.addEventListener("keydown", onDown);
     window.addEventListener("keyup", onUp);
+    window.addEventListener("blur", onBlur);
+    document.addEventListener("visibilitychange", onVis);
     return () => {
       window.removeEventListener("keydown", onDown);
       window.removeEventListener("keyup", onUp);
+      window.removeEventListener("blur", onBlur);
+      document.removeEventListener("visibilitychange", onVis);
     };
-  }, [keyDown, keyUp]);
+  }, [keyDown, keyUp, releaseAll]);
 
   return (
     <div className="min-h-screen bg-zinc-950 p-6 text-zinc-100">

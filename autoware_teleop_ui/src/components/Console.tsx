@@ -8,7 +8,7 @@ function AxisSlider({ label, value, min, max, step, onChange, accent, disabled }
   const pct = ((value - min) / (max - min)) * 100;
   return (
     <label className="flex items-center gap-2 text-[11px] text-zinc-400">
-      <span className="w-24 shrink-0 truncate">{label}</span>
+      <span className="w-24 shrink-0 truncate" title={label}>{label}</span>
       <input type="range" min={min} max={max} step={step} value={value}
         disabled={disabled}
         onChange={(e) => onChange(Number(e.target.value))}
@@ -39,6 +39,33 @@ function Segmented<T extends string>({ options, value, onChange, label }: {
   );
 }
 
+function Keycaps({ keys }: { keys: Partial<Record<string, boolean>> }) {
+  const defs = [
+    ["W", keys["w"], "throttle"],
+    ["S", keys["s"], "reverse"],
+    ["A", keys["a"], "left"],
+    ["D", keys["d"], "right"],
+    ["SPACE", keys["space"], "brake"],
+  ] as const;
+  return (
+    <div className="flex flex-wrap gap-1 border-t border-zinc-800 pt-2">
+      {defs.map(([label, active, hint]) => (
+        <kbd
+          key={label}
+          title={hint}
+          className={`rounded px-1.5 py-0.5 text-[10px] font-mono font-semibold transition ${
+            active
+              ? "bg-blue-600 text-white ring-1 ring-blue-400"
+              : "bg-zinc-800 text-zinc-500"
+          }`}
+        >
+          {label}
+        </kbd>
+      ))}
+    </div>
+  );
+}
+
 export function Console() {
   const intent = useTeleop((s) => s.intent);
   const setIntent = useTeleop((s) => s.setIntent);
@@ -46,6 +73,7 @@ export function Console() {
   const setInputMode = useTeleop((s) => s.setInputMode);
   const setLimit = useTeleop((s) => s.setLimit);
   const streamQuality = useTeleop((s) => s.streamQuality);
+  const keys = useTeleop((s) => s.keys);
   const bp = intent.bridge_params;
   const isKeyboard = intent.input_mode === "keyboard";
   const locked = !intent.engage;
@@ -81,6 +109,7 @@ export function Console() {
 
       <Segmented options={INPUT_MODES} value={intent.input_mode}
         onChange={setInputMode} label="Input" />
+      {isKeyboard && <Keycaps keys={keys} />}
 
       <button onClick={toggleEngage}
         className={`w-full rounded-md px-2 py-1 text-xs font-bold transition

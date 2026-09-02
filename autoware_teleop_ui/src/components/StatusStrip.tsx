@@ -11,6 +11,8 @@ export function StatusStrip() {
   const estopArmed = useTeleop((s) => s.estopArmed);
   const toggleEstop = useTeleop((s) => s.toggleEstop);
   const setIntent = useTeleop((s) => s.setIntent);
+  const connected = useTeleop((s) => s.connected);
+  const reconnectAttempts = useTeleop((s) => s.reconnectAttempts);
   const v = telemetry.vehicle;
   const req = telemetry.requested;
 
@@ -36,6 +38,13 @@ export function StatusStrip() {
       <span className={`rounded px-2 py-0.5 font-bold text-white ${txState.cls}`}>
         {txState.label}
       </span>
+
+      {!connected && (
+        <span className="rounded bg-amber-600/20 px-2 py-0.5 font-semibold text-amber-300"
+          title="Reconnecting to backend">
+          RECONNECT{reconnectAttempts > 0 ? ` (${reconnectAttempts})` : ""}
+        </span>
+      )}
 
       <div className="flex items-center gap-4 font-mono text-zinc-300">
         <span>
@@ -70,12 +79,14 @@ export function StatusStrip() {
       <div className="ml-auto flex items-center gap-2">
         <button
           onClick={stopAll}
-          className="rounded bg-zinc-800 px-3 py-1 font-semibold text-zinc-200 hover:bg-zinc-700"
+          title="Zero axes + neutral + disengage. Safe-release sent to the node."
+          className="rounded bg-amber-600/20 px-3 py-1 font-semibold text-amber-300 hover:bg-amber-600/40"
         >
-          Stop all / release
+          Stop / release
         </button>
         <button
           onClick={toggleEstop}
+          title="Toggle emergency stop"
           className={`rounded px-3 py-1 font-bold transition ${
             estopArmed ? "bg-red-600 text-white" : "bg-zinc-800 text-red-400 hover:bg-zinc-700"
           }`}

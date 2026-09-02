@@ -30,6 +30,8 @@ interface TeleopState {
   keyDown: (k: string) => void;
   keyUp: (k: string) => void;
   toggleEstop: () => void;
+  /** Release all held keys + zero axes (blur / tab-hide / disconnect). */
+  releaseAll: () => void;
   connect: (url?: string) => void;
   _send: (intent: Intent) => void;
 }
@@ -130,47 +132,95 @@ export const useTeleop = create<TeleopState>((set, get) => ({
     get()._send(next);
   },
 
+  /**
+   * Safety: release every held key and zero the axes. Called on window blur,
+   * tab-hidden, and disconnect so the vehicle stops instead of holding the
+   * last command.
+   */
+  releaseAll: () => {
+    set({ keys: {} });
+    const i = get().intent;
+    if (i.throttle !== 0 || i.brake !== 0 || i.steer !== 0) {
+      get().setIntent({ throttle: 0, brake: 0, steer: 0 });
+    }
+  },
+
   connect: (url) => {
+    let ws: WebSocket;
+    let closed = false;
+    let lastMsg = Date.now();
+    let retry = 0;
+    let timer: number | undefined;
+    const mark = (q: TeleopState["streamQuality"]) =>
+      set({ streamQuality: q });
+
     const wsUrl = url ?? (() => {
       const proto = location.protocol === "https:" ? "wss" : "ws";
       return `${proto}://${location.host}/ws`;
     })();
-    const ws = new WebSocket(wsUrl);
-    let lastMsg = Date.now();
-    const mark = (q: TeleopState["streamQuality"]) =>
-      set({ streamQuality: q });
-    ws.onopen = () => {
-      set({ connected: true, ws, reconnectAttempts: 0, streamQuality: "live" });
-      lastMsg = Date.now();
-    };
-    ws.onclose = () => {
-      set({ connected: false, ws: null, streamQuality: "lost" });
-    };
-    ws.onerror = () => set({ connected: false });
-    ws.onmessage = (ev) => {
-      lastMsg = Date.now();
-      mark("live");
+
+    const open = () => {
+      if (closed) return;
       try {
-        const parsed = TelemetrySchema.parse(JSON.parse(ev.data));
-        set({ telemetry: parsed });
+        ws = new WebSocket(wsUrl);
       } catch {
-        /* ignore malformed telemetry */
+        scheduleReconnect();
+        return;
       }
+      set({ ws });
+      ws.onopen = () => {
+        retry = 0;
+        lastMsg = Date.now();
+        set({ connected: true, reconnectAttempts: 0, streamQuality: "live" });
+      };
+      ws.onclose = () => {
+        set({ connected: false, ws: null, streamQuality: "lost" });
+        get().releaseAll();
+        scheduleReconnect();
+      };
+      ws.onerror = () => ws.close();
+      ws.onmessage = (ev) => {
+        lastMsg = Date.now();
+        mark("live");
+        try {
+          const parsed = TelemetrySchema.parse(JSON.parse(ev.data));
+          set({ telemetry: parsed });
+        } catch {
+          /* ignore malformed telemetry */
+        }
+      };
     };
-    set({ ws });
+
+    const scheduleReconnect = () => {
+      if (closed || timer) return;
+      retry += 1;
+      set({ reconnectAttempts: retry });
+      // Exponential backoff with a 8s cap.
+      const delay = Math.min(8000, 500 * 2 ** retry);
+      timer = window.setTimeout(() => {
+        timer = undefined;
+        open();
+      }, delay);
+    };
+
+    open();
     // Independent freshness clock: a connected-but-silent socket degrades.
     const watch = window.setInterval(() => {
       const age = Date.now() - lastMsg;
       if (ws.readyState === WebSocket.OPEN) {
-        if (age > 3000) mark("delayed");
-        else if (age > 1500) mark("delayed");
-        else mark("live");
+        mark(age > 1500 ? "delayed" : "live");
       } else if (age > 1500) {
         mark("lost");
       } else if (age > 750) {
         mark("delayed");
       }
     }, 250);
-    ws.addEventListener("close", () => window.clearInterval(watch));
+
+    return () => {
+      closed = true;
+      if (timer) window.clearTimeout(timer);
+      window.clearInterval(watch);
+      ws.close();
+    };
   },
 }));
