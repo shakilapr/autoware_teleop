@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { Console } from "./components/Console";
+import { Systems } from "./components/Systems";
 import { Dashboard } from "./components/Dashboard";
 import { StatusStrip } from "./components/StatusStrip";
 import { useTeleop } from "./stores/teleop";
@@ -41,8 +42,9 @@ export default function App() {
         <span className="text-xs text-zinc-500">Autoware Universe extension</span>
       </header>
       <StatusStrip />
-      <main className="grid max-w-6xl gap-4 md:grid-cols-2">
+      <main className="grid max-w-6xl gap-4 lg:grid-cols-3 md:grid-cols-2">
         <Console />
+        <Systems />
         <Dashboard />
       </main>
     </div>
