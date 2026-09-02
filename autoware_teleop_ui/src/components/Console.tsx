@@ -65,6 +65,54 @@ function Segmented<T extends string>({ options, value, onChange, label }: {
   );
 }
 
+/**
+ * Read-only command meter for keyboard mode: shows the axis fill + the derived
+ * physical command the operator is requesting (NOT feedback). Feedback lives in
+ * the Dashboard. Axis is the commanded value in [-1,1]; `physical` is the
+ * clamp-scaled engineering value shown alongside.
+ */
+function CommandMeter({ label, axis, accent, physical }: {
+  label: string; axis: number; accent: string; physical: string;
+}) {
+  // Center for bipolar axes (-1..1), left-anchored for unipolar (brake 0..1).
+  const bipolar = axis < 0;
+  const pct = Math.min(100, Math.abs(axis) * 100);
+  const fillStyle = bipolar
+    ? { width: `${Math.min(50, pct / 2)}%` }
+    : { width: `${pct}%` };
+  const trackStyle = bipolar
+    ? {
+        backgroundImage: `linear-gradient(to right, ${accent} ${pct / 2}%, #3f3f46 ${pct / 2}%)`,
+      }
+    : undefined;
+  return (
+    <div className="text-[11px] text-zinc-400">
+      <div className="flex items-center gap-2">
+        <span className="w-24 shrink-0 truncate" title={label}>{label}</span>
+        {bipolar ? (
+          <div className="relative h-1.5 min-w-0 flex-1 rounded-full bg-zinc-800" style={trackStyle}>
+            <div className="absolute left-1/2 top-0 h-full w-px bg-zinc-600" />
+            <div
+              className={`absolute top-0 h-full rounded-full ${accent.includes("ef4444") ? "bg-[#ef4444]" : "bg-[#22c55e]"}`}
+              style={{ left: "50%", ...fillStyle }}
+            />
+          </div>
+        ) : (
+          <div className="h-1.5 min-w-0 flex-1 rounded-full bg-zinc-800">
+            <div className={`h-full rounded-full ${accent.includes("ef4444") ? "bg-[#ef4444]" : "bg-[#22c55e]"}`} style={fillStyle} />
+          </div>
+        )}
+        <span className="w-24 shrink-0 text-right font-mono text-zinc-200">{physical}</span>
+      </div>
+    </div>
+  );
+}
+
+function fmtCmd(v: number, unit: string) {
+  const s = v >= 0 ? "" : "-";
+  return `${s}${Math.abs(v).toFixed(2)} ${unit}`;
+}
+
 function Keycaps({ keys }: { keys: Partial<Record<string, boolean>> }) {
   const defs = [
     ["W", keys["w"], "throttle up"],
@@ -151,44 +199,60 @@ export function Console() {
       </button>
 
       <div className="relative">
-        {/* Drive axes + limits, covered by overlay when locked/keyboard */}
-        <div className="space-y-1.5">
-          <div className="border-t border-zinc-800 pt-2">
-            <AxisSlider label="Throttle" value={intent.throttle} min={-1} max={1} step={0.01}
-              onChange={(v) => setIntent({ throttle: v })} accent="#22c55e" disabled={isKeyboard || locked} />
-            <AxisSlider label="Brake" value={intent.brake} min={0} max={1} step={0.01}
-              onChange={(v) => setIntent({ brake: v })} accent="#ef4444" disabled={isKeyboard || locked} />
-            <AxisSlider label="Steering" value={intent.steer} min={-1} max={1} step={0.01}
-              onChange={(v) => setIntent({ steer: v })} accent="#3b82f6" disabled={isKeyboard || locked} />
-          </div>
-
-          <div className="border-t border-zinc-800 pt-2">
-            <span className="mb-1 block text-[11px] text-zinc-500">Authority limits (node-clamped)</span>
-            <div className="grid grid-cols-2 gap-x-2 gap-y-1.5">
-              <AxisSlider label="Fwd m/s" value={bp.max_speed_forward} min={0} max={3} step={0.05}
-                onChange={(v) => setLimit({ max_speed_forward: v })} accent="#22c55e" hint="0–3 m/s" />
-              <AxisSlider label="Rev m/s" value={bp.max_speed_reverse} min={0} max={0.5} step={0.05}
-                onChange={(v) => setLimit({ max_speed_reverse: v })} accent="#ef4444" hint="0–0.5 m/s" />
-              <AxisSlider label="Steer rad" value={bp.max_steering_angle} min={0} max={0.747} step={0.01}
-                onChange={(v) => setLimit({ max_steering_angle: v })} accent="#3b82f6" hint="0–0.747 rad" />
-              <AxisSlider label="Brk m/s²" value={bp.max_deceleration} min={0} max={5} step={0.1}
-                onChange={(v) => setLimit({ max_deceleration: v })} accent="#f59e0b" hint="0–5 m/s²" />
-            </div>
-          </div>
-        </div>
-
-        {(locked || isKeyboard) && (
+        {/* LOCKED overlay covers the command surface (axes + limits) below ENGAGE,
+            leaving the ENGAGE button reachable to unlock. */}
+        {locked && (
           <div className="absolute inset-0 z-10 flex items-center justify-center rounded-xl
             bg-zinc-950/70 backdrop-blur-sm">
             <div className="text-center">
-              <div className="text-lg font-bold tracking-widest text-white">
-                {locked ? "LOCKED" : "KEYBOARD MODE"}
-              </div>
-              {locked && <div className="mt-1 text-xs text-zinc-400">Press ENGAGE to unlock</div>}
-              {isKeyboard && !locked && <div className="mt-1 text-xs text-zinc-400">WASD + Space to drive</div>}
+              <div className="text-lg font-bold tracking-widest text-white">LOCKED</div>
+              <div className="mt-1 text-xs text-zinc-400">Press ENGAGE to unlock</div>
             </div>
           </div>
         )}
+
+        <div className="space-y-1.5">
+          <div className="border-t border-zinc-800 pt-2">
+          {isKeyboard ? (
+            // Keyboard mode: read-only command meters (what the keys ask for).
+            <div className="space-y-1.5">
+              <CommandMeter label="Throttle" axis={intent.throttle} accent="#22c55e"
+                physical={`cmd ${fmtCmd(intent.throttle * (intent.throttle < 0 ? bp.max_speed_reverse : bp.max_speed_forward), "m/s")}`} />
+              <CommandMeter label="Brake" axis={intent.brake} accent="#ef4444"
+                physical={`cmd ${fmtCmd(intent.brake * bp.max_deceleration, "m/s²")}`} />
+              <CommandMeter label="Steering" axis={intent.steer} accent="#3b82f6"
+                physical={`cmd ${fmtCmd(intent.steer * bp.max_steering_angle, "rad")}`} />
+            </div>
+          ) : (
+            <div className="space-y-1.5">
+              <AxisSlider label="Throttle" value={intent.throttle} min={-1} max={1} step={0.01}
+                onChange={(v) => setIntent({ throttle: v })} accent="#22c55e" disabled={locked} />
+              <AxisSlider label="Brake" value={intent.brake} min={0} max={1} step={0.01}
+                onChange={(v) => setIntent({ brake: v })} accent="#ef4444" disabled={locked} />
+              <AxisSlider label="Steering" value={intent.steer} min={-1} max={1} step={0.01}
+                onChange={(v) => setIntent({ steer: v })} accent="#3b82f6" disabled={locked} />
+            </div>
+          )}
+        </div>
+
+        {/* Authority limits: the manual speed clamp. Usable whenever engaged
+            (raw AND keyboard) — the node clamps commanded output to these. */}
+        <div className="border-t border-zinc-800 pt-2">
+          <span className="mb-1 block text-[11px] text-zinc-500">
+            Authority limits (clamp{isKeyboard ? " · live while keyboarding" : ""})
+          </span>
+          <div className="grid grid-cols-2 gap-x-2 gap-y-1.5">
+            <AxisSlider label="Fwd m/s" value={bp.max_speed_forward} min={0} max={3} step={0.05}
+              onChange={(v) => setLimit({ max_speed_forward: v })} accent="#22c55e" hint="0–3 m/s" disabled={locked} />
+            <AxisSlider label="Rev m/s" value={bp.max_speed_reverse} min={0} max={0.5} step={0.05}
+              onChange={(v) => setLimit({ max_speed_reverse: v })} accent="#ef4444" hint="0–0.5 m/s" disabled={locked} />
+            <AxisSlider label="Steer rad" value={bp.max_steering_angle} min={0} max={0.747} step={0.01}
+              onChange={(v) => setLimit({ max_steering_angle: v })} accent="#3b82f6" hint="0–0.747 rad" disabled={locked} />
+            <AxisSlider label="Brk m/s²" value={bp.max_deceleration} min={0} max={5} step={0.1}
+              onChange={(v) => setLimit({ max_deceleration: v })} accent="#f59e0b" hint="0–5 m/s²" disabled={locked} />
+          </div>
+        </div>
+        </div>
       </div>
     </div>
   );

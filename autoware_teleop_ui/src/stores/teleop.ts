@@ -78,7 +78,17 @@ export const useTeleop = create<TeleopState>((set, get) => ({
   toggleHazard: () => get().setIntent({ hazard: !get().intent.hazard }),
   setOperationMode: (operation_mode) => get().setIntent({ operation_mode }),
   setManualMode: (manual_control_mode) => get().setIntent({ manual_control_mode }),
-  setInputMode: (input_mode) => get().setIntent({ input_mode }),
+  setInputMode: (input_mode) => {
+    // Entering keyboard mode: clear any raw-slider axes so command meters and
+    // the node start from neutral (keys are the only source of axes now).
+    const patch: Partial<Intent> = { input_mode };
+    if (input_mode === "keyboard") {
+      patch.throttle = 0;
+      patch.brake = 0;
+      patch.steer = 0;
+    }
+    get().setIntent(patch);
+  },
 
   setLimit: (patch) => {
     const next = {
