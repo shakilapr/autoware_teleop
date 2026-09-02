@@ -83,6 +83,7 @@ function _keyboardTick() {
   const tTarget = (k["w"] ? 1 : 0) - (k["s"] ? 1 : 0);
   const sTarget = (k["a"] ? -1 : 0) + (k["d"] ? 1 : 0);
   const bTarget = k["space"] ? 1 : 0;
+  const anyHeld = tTarget !== 0 || sTarget !== 0 || bTarget !== 0;
   const dt = RAMP_MS / 1000;
   const i = s.intent;
   const throttle = _rampToward(i.throttle, tTarget, THROTTLE_RISE, THROTTLE_FALL, dt);
@@ -98,6 +99,10 @@ function _keyboardTick() {
   if (changed || now - _lastRampSend > KEEPALIVE_MS) {
     _lastRampSend = now;
     s.setIntent({ throttle, steer, brake });
+  }
+  // Once every axis reached neutral with nothing held, the loop can stop.
+  if (!anyHeld && throttle === 0 && brake === 0 && steer === 0) {
+    _stopRamp();
   }
 }
 
@@ -185,12 +190,21 @@ export const useTeleop = create<TeleopState>((set, get) => ({
       delete keys[k];
       return { keys };
     });
-    // If no keys remain, ramp back to neutral and eventually stop the loop.
-    const keys = get().keys;
-    if (!keys["w"] && !keys["s"] && !keys["a"] && !keys["d"] && !keys["space"]) {
-      _stopRamp();
-    }
+    // Run the tick so the released axis starts decaying.
     _keyboardTick();
+    // If no keys remain, keep the loop alive only while axes are not neutral
+    // yet (so the release ramps all the way to zero), then stop it.
+    const keys = get().keys;
+    const i = get().intent;
+    const allReleased =
+      !keys["w"] && !keys["s"] && !keys["a"] && !keys["d"] && !keys["space"];
+    if (allReleased) {
+      if (i.throttle === 0 && i.brake === 0 && i.steer === 0) {
+        _stopRamp();
+      } else {
+        _ensureRamp();
+      }
+    }
   },
 
   toggleEngage: () => {
