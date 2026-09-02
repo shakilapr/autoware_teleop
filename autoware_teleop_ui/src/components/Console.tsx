@@ -177,6 +177,7 @@ function Keycaps({ keys }: { keys: Partial<Record<string, boolean>> }) {
 
 export function Console() {
   const intent = useTeleop((s) => s.intent);
+  const telemetry = useTeleop((s) => s.telemetry);
   const setIntent = useTeleop((s) => s.setIntent);
   const toggleEngage = useTeleop((s) => s.toggleEngage);
   const setInputMode = useTeleop((s) => s.setInputMode);
@@ -185,7 +186,15 @@ export function Console() {
   const keys = useTeleop((s) => s.keys);
   const bp = intent.bridge_params;
   const isKeyboard = intent.input_mode === "keyboard";
-  const locked = !intent.engage;
+
+  const isRemote = intent.operation_mode === "REMOTE";
+  const locked = !intent.engage || !isRemote;
+
+  const autowareConflict = isRemote && (
+    Boolean(telemetry.mode.autoware_conflict) ||
+    telemetry.mode.drive_mode.toLowerCase() === "autonomous" ||
+    telemetry.info.toLowerCase().includes("conflict")
+  );
 
   const qLabel =
     streamQuality === "live"
@@ -220,27 +229,77 @@ export function Console() {
           </div>
         </div>
 
+        {/* Remote Mode Conflict Warning or Clear Status */}
+        {isRemote ? (
+          autowareConflict ? (
+            <div className="rounded-lg border-2 border-amber-500 bg-amber-950/80 p-2.5 text-amber-200 space-y-1 shadow-md animate-pulse">
+              <div className="flex items-center gap-2 font-bold text-xs text-amber-300">
+                <span className="h-2.5 w-2.5 rounded-full bg-amber-400 shrink-0" />
+                <span>TOPIC CONFLICT: Autoware Universe Running</span>
+              </div>
+              <p className="text-[11px] leading-relaxed text-amber-200/90 font-sans">
+                Autoware Universe is active. Drive commands may collide on /control/command/* topics!
+              </p>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between rounded-lg bg-zinc-950/60 px-3 py-1.5 border border-zinc-800 text-xs">
+              <span className="text-zinc-400 text-[11px]">Autoware Status:</span>
+              <span className="text-emerald-400 font-semibold text-[11px] flex items-center gap-1.5">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                Clear · Remote Authority Active
+              </span>
+            </div>
+          )
+        ) : null}
+
         <Segmented options={INPUT_MODES} value={intent.input_mode} onChange={setInputMode} label="Input Mode" />
         {isKeyboard && <Keycaps keys={keys} />}
 
         <button
           onClick={toggleEngage}
+          disabled={!isRemote}
           className={`min-h-[42px] w-full rounded-lg px-4 py-2 text-sm font-bold tracking-wide transition active:scale-[0.99] ${
-            intent.engage
-              ? "bg-emerald-600 text-white shadow-lg shadow-emerald-600/30 ring-2 ring-emerald-400 hover:bg-emerald-500"
-              : "border-2 border-emerald-500/70 bg-emerald-950/30 text-emerald-300 hover:bg-emerald-900/50 hover:border-emerald-400"
+            !isRemote
+              ? "bg-zinc-800/80 text-zinc-400 border border-zinc-700 cursor-not-allowed opacity-70"
+              : intent.engage
+                ? "bg-emerald-600 text-white shadow-lg shadow-emerald-600/30 ring-2 ring-emerald-400 hover:bg-emerald-500"
+                : "border-2 border-emerald-500/70 bg-emerald-950/30 text-emerald-300 hover:bg-emerald-900/50 hover:border-emerald-400"
           }`}
         >
-          {intent.engage ? "✓ VEHICLE ENGAGED (CLICK TO LOCK)" : "⚡ PRESS TO ENGAGE CONTROL"}
+          {!isRemote
+            ? intent.operation_mode === "FULL"
+              ? "🔒 FULL AUTONOMOUS MODE (DRIVE DISABLED)"
+              : intent.operation_mode === "SIM"
+                ? "🔒 SIMULATION MODE (DRIVE DISABLED)"
+                : "🔒 VEHICLE STOPPED (DRIVE DISABLED)"
+            : intent.engage
+              ? "✓ VEHICLE ENGAGED (CLICK TO LOCK)"
+              : "⚡ PRESS TO ENGAGE CONTROL"}
         </button>
 
         <div className="relative rounded-lg p-1">
-          {/* LOCKED overlay covers command surface when disengaged */}
+          {/* LOCKED overlay covers command surface when disengaged or non-remote */}
           {locked && (
-            <div className="absolute inset-0 z-10 flex items-center justify-center rounded-lg bg-zinc-950/80 backdrop-blur-[2px] border border-zinc-800">
+            <div className="absolute inset-0 z-10 flex items-center justify-center rounded-lg bg-zinc-950/85 backdrop-blur-[2px] border border-zinc-800">
               <div className="text-center p-3">
-                <div className="text-sm font-bold tracking-widest text-zinc-200">CONTROL LOCKED</div>
-                <div className="mt-1 text-xs text-zinc-400">Press ENGAGE above to enable throttle & steering</div>
+                <div className="text-sm font-bold tracking-widest text-zinc-200">
+                  {!isRemote
+                    ? intent.operation_mode === "FULL"
+                      ? "AUTONOMOUS MONITORING ONLY"
+                      : intent.operation_mode === "SIM"
+                        ? "SIMULATION VIEWING ONLY"
+                        : "VEHICLE STOPPED"
+                    : "CONTROL LOCKED"}
+                </div>
+                <div className="mt-1 text-xs text-zinc-400">
+                  {!isRemote
+                    ? intent.operation_mode === "FULL"
+                      ? "Vehicle is commanded by Autoware Universe. Drive controls are disabled."
+                      : intent.operation_mode === "SIM"
+                        ? "Autoware simulation is running without real sensors. Drive controls are disabled."
+                        : "Vehicle is in STOP mode. Switch to REMOTE mode to drive."
+                    : "Press ENGAGE above to enable throttle & steering"}
+                </div>
               </div>
             </div>
           )}

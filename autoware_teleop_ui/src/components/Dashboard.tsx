@@ -289,6 +289,13 @@ export function Dashboard() {
           </div>
         </div>
 
+        {telemetry.mode.autoware_conflict && (
+          <div className="rounded-lg border border-amber-600/80 bg-amber-950/40 p-2.5 text-xs text-amber-300 flex items-center gap-2">
+            <span className="h-2 w-2 rounded-full bg-amber-400 animate-ping shrink-0" />
+            <span className="font-semibold">Autoware Universe Topic Conflict Detected</span>
+          </div>
+        )}
+
         {telemetry.info && (
           <div className="rounded-lg border border-amber-800/60 bg-amber-950/30 p-2.5 text-xs text-amber-300">
             {telemetry.info}

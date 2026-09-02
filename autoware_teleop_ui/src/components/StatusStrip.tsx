@@ -11,31 +11,45 @@ export function StatusStrip() {
   const streamQuality = useTeleop((s) => s.streamQuality);
   const v = telemetry.vehicle;
 
-  const locked = !intent.engage;
+  const isRemote = intent.operation_mode === "REMOTE";
+  const locked = !intent.engage || !isRemote;
   const live = connected && streamQuality === "live" && v.freshness === "live";
 
-  // READY gate: only green when fully live and control is engaged without estop.
-  const ready = connected && !locked && live && !estopArmed;
+  const autowareConflict = isRemote && (
+    Boolean(telemetry.mode.autoware_conflict) ||
+    telemetry.mode.drive_mode.toLowerCase() === "autonomous" ||
+    telemetry.info.toLowerCase().includes("conflict")
+  );
+
+  // READY gate: only green when in REMOTE mode, fully live, and control is engaged without estop.
+  const ready = connected && isRemote && !locked && live && !estopArmed;
   
   const reasons: string[] = [];
   if (!connected) reasons.push("Not connected to vehicle");
   if (estopArmed) reasons.push("Emergency stop armed");
-  if (locked) reasons.push("Control locked — press ENGAGE to drive");
+  if (!isRemote) reasons.push(`Mode is ${intent.operation_mode} — drive controls inactive`);
+  else if (locked) reasons.push("Control locked — press ENGAGE to drive");
   if (connected && streamQuality !== "live") reasons.push("Stream quality degraded");
   if (connected && v.freshness === "unseen") reasons.push("No telemetry received yet");
   if (connected && v.freshness === "missing") reasons.push("Telemetry stream missing");
   const readyReason = reasons.length ? reasons.join(" · ") : "System OK and Ready";
 
-  // Gated TX state: do not show green ARMED if offline or missing telemetry
+  // Gated TX state: reflect the specific operation mode
   const txState = estopArmed
     ? { label: "ESTOP", cls: "bg-red-600 text-white animate-pulse" }
-    : locked
-      ? { label: "DISARMED", cls: "bg-zinc-800 text-zinc-400 border border-zinc-700" }
-      : !connected || !live
-        ? { label: "ARMED (OFFLINE)", cls: "bg-amber-600/30 text-amber-300 border border-amber-500/50" }
-        : telemetry.simulated
-          ? { label: "SIM (ARMED)", cls: "bg-blue-600 text-white" }
-          : { label: "ARMED (LIVE)", cls: "bg-emerald-600 text-white shadow-sm shadow-emerald-500/30" };
+    : intent.operation_mode === "STOP"
+      ? { label: "STOPPED", cls: "bg-zinc-800 text-zinc-400 border border-zinc-700" }
+      : intent.operation_mode === "FULL"
+        ? { label: "AUTONOMOUS (FULL)", cls: "bg-indigo-600 text-white shadow-sm" }
+        : intent.operation_mode === "SIM"
+          ? { label: "SIMULATION (VIEW)", cls: "bg-cyan-600 text-white shadow-sm" }
+          : locked
+            ? { label: "REMOTE (LOCKED)", cls: "bg-zinc-800 text-zinc-400 border border-zinc-700" }
+            : !connected || !live
+              ? { label: "ARMED (OFFLINE)", cls: "bg-amber-600/30 text-amber-300 border border-amber-500/50" }
+              : telemetry.simulated
+                ? { label: "REMOTE (SIM ARMED)", cls: "bg-blue-600 text-white" }
+                : { label: "REMOTE (ARMED LIVE)", cls: "bg-emerald-600 text-white shadow-sm shadow-emerald-500/30" };
 
   const stopAll = () => {
     // Explicit safe release: zero axes + neutral + engage off (node publishes safe frame)
@@ -69,6 +83,16 @@ export function StatusStrip() {
         >
           {txState.label}
         </span>
+
+        {autowareConflict && (
+          <span
+            className="rounded-lg bg-amber-500/20 border border-amber-500/60 px-3 py-1.5 text-xs font-bold text-amber-300 animate-pulse flex items-center gap-1.5"
+            title="Topic conflict warning: Autoware Universe control stack is running concurrently with remote teleop!"
+          >
+            <span className="h-2 w-2 rounded-full bg-amber-400 shrink-0" />
+            ⚠️ TOPIC CONFLICT
+          </span>
+        )}
 
         {!connected && (
           <span

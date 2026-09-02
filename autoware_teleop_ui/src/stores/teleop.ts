@@ -147,7 +147,18 @@ export const useTeleop = create<TeleopState>((set, get) => ({
   setGear: (gear) => get().setIntent({ gear }),
   setTurn: (turn_indicator) => get().setIntent({ turn_indicator }),
   toggleHazard: () => get().setIntent({ hazard: !get().intent.hazard }),
-  setOperationMode: (operation_mode) => get().setIntent({ operation_mode }),
+  setOperationMode: (operation_mode) => {
+    const patch: Partial<Intent> = { operation_mode };
+    if (operation_mode !== "REMOTE") {
+      _stopRamp();
+      patch.engage = false;
+      patch.throttle = 0;
+      patch.brake = 0;
+      patch.steer = 0;
+      patch.gear = "NEUTRAL";
+    }
+    get().setIntent(patch);
+  },
   setManualMode: (manual_control_mode) => get().setIntent({ manual_control_mode }),
   setInputMode: (input_mode) => {
     // Entering keyboard mode: clear any raw-slider axes so command meters and
@@ -208,6 +219,7 @@ export const useTeleop = create<TeleopState>((set, get) => ({
   },
 
   toggleEngage: () => {
+    if (get().intent.operation_mode !== "REMOTE") return;
     const next = !get().intent.engage;
     get().setIntent({ engage: next });
     if (next && get().intent.input_mode === "keyboard") _ensureRamp();

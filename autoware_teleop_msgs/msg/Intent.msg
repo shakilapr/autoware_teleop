@@ -24,8 +24,8 @@ uint8 gear         # autoware_vehicle_msgs/GearCommand constants
 uint8 turn_indicator  # 0=NONE 1=LEFT 2=RIGHT (autoware_vehicle_msgs TurnIndicatorsCommand)
 bool hazard
 
-# Operation / manual control modes (ADAPI semantics; direct gateway ignores).
-uint8 operation_mode   # 0=STOP 1=AUTONOMOUS 2=LOCAL 3=REMOTE
+# Operation / manual control modes.
+uint8 operation_mode   # 0=STOP 1=FULL 2=SIM 3=REMOTE
 uint8 manual_control_mode  # 0=PEDALS 1=ACCELERATION 2=VELOCITY
 bool engage
 

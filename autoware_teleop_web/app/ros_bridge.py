@@ -58,6 +58,19 @@ GEAR_REPORT_NAME = {
     GearReport.LOW: "LOW",
 }
 
+OP_MODE_NAME = {
+    0: "STOP",
+    1: "FULL",
+    2: "SIM",
+    3: "REMOTE",
+}
+OP_MODE_VAL = {
+    "STOP": 0,
+    "FULL": 1,
+    "SIM": 2,
+    "REMOTE": 3,
+}
+
 
 @dataclass
 class TopicFreshness:
@@ -210,7 +223,7 @@ class TeleopRosBridge(Node):
         self._turn = {"NONE": 0, "LEFT": 1, "RIGHT": 2}.get(
             intent.get("turn_indicator", "NONE"), 0)
         self._hazard = bool(intent.get("hazard", False))
-        self._operation_mode = {"STOP": 0, "AUTONOMOUS": 1, "LOCAL": 2, "REMOTE": 3}.get(
+        self._operation_mode = OP_MODE_VAL.get(
             intent.get("operation_mode", "STOP"), 0)
         self._manual_mode = {"PEDALS": 0, "ACCELERATION": 1, "VELOCITY": 2}.get(
             intent.get("manual_control_mode", "VELOCITY"), 2)
@@ -234,6 +247,19 @@ class TeleopRosBridge(Node):
 
     def set_estop_counter(self, count: int) -> None:
         self._estop = max(0, int(count))
+
+    def get_operation_mode_name(self) -> str:
+        return OP_MODE_NAME.get(self._operation_mode, "STOP")
+
+    def check_autoware_conflict(self) -> bool:
+        """Check if Autoware Universe is actively publishing control or planning commands."""
+        try:
+            ctrl_pubs = self.count_publishers("/control/command/control_cmd")
+            traj_pubs = self.count_publishers("/planning/scenario_planning/trajectory")
+            # In REMOTE mode, if another node publishes control_cmd (count > 1) or trajectory is active:
+            return (self._operation_mode == 3 and ctrl_pubs > 1) or traj_pubs > 0
+        except Exception:
+            return False
 
     # ---- intent stream -> node ----
     def _publish_intent(self):

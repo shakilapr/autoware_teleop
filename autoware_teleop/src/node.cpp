@@ -224,6 +224,7 @@ void TeleopNode::on_intent(const autoware_teleop_msgs::msg::Intent::SharedPtr ms
     intent.estop = (msg->estop % 2) == 1;   // odd = armed
     intent.input_mode = msg->input_mode;     // 0=raw 1=keyboard
     intent.engage = msg->engage;
+    intent.operation_mode = msg->operation_mode;
     intent.sequence = msg->sequence;
     intent.source = source;
     intent.max_speed_forward = msg->max_speed_forward;
@@ -286,8 +287,9 @@ Control TeleopNode::make_control()
   const bool ses_on = enable_ses_.load(std::memory_order_relaxed);
 
   // Control lock (engage): node-enforced, never trusts the browser to have
-  // disabled a control. While locked, output is zero velocity / neutral.
-  const bool locked = !intent_.engage;
+  // Control lock (engage) or non-remote operation mode:
+  // In STOP, FULL, SIM modes, teleop drive control is locked.
+  const bool locked = !intent_.engage || intent_.operation_mode != 3;
 
   // Input-mode gate (node-side): in keyboard mode only the discrete keyboard
   // axes {-1,0,1} are valid. Any continuous slider value is zeroed so a stale
@@ -350,6 +352,29 @@ void TeleopNode::on_timer()
     return;
   }
 
+  uint8_t op_mode = 0;
+  {
+    std::lock_guard<std::mutex> lock(mutex_);
+    op_mode = intent_.operation_mode;
+  }
+
+  // Operation modes:
+  // 0 = STOP: Vehicle stopped / inactive. Commands safe braking + neutral.
+  // 1 = FULL: Autonomous mode where Autoware Universe controls the vehicle.
+  //           Teleop node is passive (viewing only) — DO NOT publish control to avoid topic conflicts.
+  // 2 = SIM:  Simulation mode without hardware sensors. Viewing only — DO NOT publish control.
+  // 3 = REMOTE: Teleoperation mode where operator drive controls are active when engaged.
+  if (op_mode == 1 /* FULL */ || op_mode == 2 /* SIM */) {
+    return;
+  }
+
+  if (op_mode == 0 /* STOP */) {
+    pub_control_->publish(make_safe_control());
+    pub_gear_->publish(std::make_unique<GearCommand>());
+    return;
+  }
+
+  // REMOTE mode (op_mode == 3):
   if (!intent_fresh()) {
     // deadman: brake to a stop with an explicit safe frame + neutral gear.
     pub_control_->publish(make_safe_control());
@@ -361,8 +386,9 @@ void TeleopNode::on_timer()
   auto gear = std::make_unique<GearCommand>();
   {
     std::lock_guard<std::mutex> lock(mutex_);
-    gear->command = !intent_.engage ? autoware_vehicle_msgs::msg::GearCommand::NEUTRAL
-                                    : intent_.gear;
+    gear->command = (!intent_.engage || intent_.operation_mode != 3)
+                      ? autoware_vehicle_msgs::msg::GearCommand::NEUTRAL
+                      : intent_.gear;
   }
   pub_gear_->publish(std::move(gear));
 }

@@ -28,7 +28,7 @@ from pydantic import BaseModel, Field
 # ---------------------------------------------------------------------------
 GearLiteral = Literal["PARK", "DRIVE", "REVERSE", "NEUTRAL"]
 InputModeLiteral = Literal["raw", "keyboard"]
-OperationModeLiteral = Literal["STOP", "AUTONOMOUS", "LOCAL", "REMOTE"]
+OperationModeLiteral = Literal["STOP", "FULL", "SIM", "REMOTE"]
 ManualModeLiteral = Literal["PEDALS", "ACCELERATION", "VELOCITY"]
 TurnLiteral = Literal["NONE", "LEFT", "RIGHT"]
 TestModeLiteral = Literal["manual", "auto", "sim", "mtr_only", "ses_only", "seb_only"]
@@ -98,10 +98,11 @@ class Intent(BaseModel):
 # Telemetry (node -> client), every control tick
 # ---------------------------------------------------------------------------
 class ModeState(BaseModel):
-    operation_mode: OperationModeLiteral = "STOP"     # STOP / AUTONOMOUS / LOCAL / REMOTE
+    operation_mode: OperationModeLiteral = "STOP"     # STOP / FULL / SIM / REMOTE
     manual_control_mode: ManualModeLiteral = "VELOCITY"
     drive_mode: str = "stop"                 # active drive mode
     mode_status: str = ""
+    autoware_conflict: bool = False
 
 
 class VehicleState(BaseModel):

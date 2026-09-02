@@ -1,6 +1,13 @@
 import { useTeleop } from "../stores/teleop";
 import { GEAR, MANUAL_MODES, OPERATION_MODES } from "../lib/schemas";
 
+const MODE_COLORS: Record<string, string> = {
+  STOP: "bg-red-600 text-white shadow-sm font-bold border border-red-500",
+  FULL: "bg-indigo-600 text-white shadow-sm font-bold border border-indigo-500",
+  SIM: "bg-cyan-600 text-white shadow-sm font-bold border border-cyan-500",
+  REMOTE: "bg-emerald-600 text-white shadow-sm font-bold border border-emerald-500",
+};
+
 function Segmented<T extends string>({ options, value, onChange, label, disabled }: {
   options: readonly T[]; value: T; onChange: (v: T) => void; label?: string; disabled?: boolean;
 }) {
@@ -11,12 +18,13 @@ function Segmented<T extends string>({ options, value, onChange, label, disabled
       <div className={`flex rounded-lg bg-zinc-800 p-1 border border-zinc-700/60 ${disabled ? "opacity-50" : ""}`}>
         {options.map((o) => {
           const isActive = o === active;
+          const activeStyle = MODE_COLORS[o] || "bg-blue-600 text-white shadow-sm font-bold";
           const style = disabled
             ? isActive
               ? "bg-zinc-700 text-zinc-200 border border-zinc-600"
               : "text-zinc-500"
             : isActive
-              ? "bg-blue-600 text-white shadow-sm font-bold"
+              ? activeStyle
               : "text-zinc-400 hover:text-zinc-100 hover:bg-zinc-700/50";
           return (
             <button
@@ -76,6 +84,15 @@ export function Systems() {
   const estopArmed = useTeleop((s) => s.estopArmed);
 
   const locked = !intent.engage;
+  const isRemote = intent.operation_mode === "REMOTE";
+  const driveLocked = locked || !isRemote;
+
+  const MODE_EXPLANATIONS: Record<string, string> = {
+    STOP: "Vehicle stopped. Drive control inactive.",
+    FULL: "Autonomous mode · Autoware Universe controlling vehicle · Viewing only",
+    SIM: "Simulation mode · No hardware sensors · Viewing only",
+    REMOTE: "Remote teleoperation · Drive control active when engaged",
+  };
 
   return (
     <div className="relative flex flex-col justify-between rounded-xl border border-zinc-800 bg-zinc-900 p-4 space-y-4 shadow-md">
@@ -85,11 +102,14 @@ export function Systems() {
           Vehicle Systems
         </h2>
 
-        <div className="space-y-3">
+        <div className="space-y-2">
           <Segmented options={OPERATION_MODES} value={intent.operation_mode}
-            onChange={setOperationMode} label="Operation Mode" disabled={locked} />
+            onChange={setOperationMode} label="Operation Mode" />
+          <div className="text-[11px] font-medium text-zinc-400 bg-zinc-950/60 px-2.5 py-1 rounded-md border border-zinc-800/80">
+            {MODE_EXPLANATIONS[intent.operation_mode]}
+          </div>
           <Segmented options={MANUAL_MODES} value={intent.manual_control_mode}
-            onChange={setManualMode} label="Control Mode" disabled={locked} />
+            onChange={setManualMode} label="Control Mode" disabled={driveLocked} />
         </div>
 
         {/* Transmission Gear Selector */}
@@ -108,7 +128,7 @@ export function Systems() {
               const meta = GEAR_META[g];
               let btnClass: string;
 
-              if (locked) {
+              if (driveLocked) {
                 btnClass = isActive
                   ? "bg-zinc-800 text-zinc-300 border-2 border-zinc-600"
                   : "bg-zinc-900 text-zinc-500 border border-zinc-800";
@@ -122,10 +142,10 @@ export function Systems() {
                 <button
                   key={g}
                   onClick={() => setGear(g)}
-                  disabled={locked}
-                  title={`${g} — ${meta.full}${isActive ? " (Requested)" : ""}`}
+                  disabled={driveLocked}
+                  title={!isRemote ? "Gear control disabled in non-REMOTE mode" : `${g} — ${meta.full}${isActive ? " (Requested)" : ""}`}
                   className={`min-h-[44px] flex flex-col items-center justify-center rounded-lg p-1 transition active:scale-95 min-w-0 ${
-                    locked ? "cursor-not-allowed opacity-50" : ""
+                    driveLocked ? "cursor-not-allowed opacity-50" : ""
                   } ${btnClass}`}
                 >
                   <span className="font-mono text-base font-bold leading-none">{g[0]}</span>

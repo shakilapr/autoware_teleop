@@ -58,6 +58,7 @@ struct Intent
   int64_t timestamp_ms{0};
   uint8_t input_mode{0};      // 0=raw 1=keyboard (node-enforced)
   bool engage{false};         // control lock
+  uint8_t operation_mode{0};  // 0=STOP 1=FULL 2=SIM 3=REMOTE
   uint32_t sequence{0};       // monotonic per source
   std::string source;         // producer identity
   // Authority limits (operator-set ceiling; node clamps to param max).
