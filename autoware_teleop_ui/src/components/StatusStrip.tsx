@@ -1,9 +1,4 @@
-import { useTeleop, streamIsStale } from "../stores/teleop";
-
-const fmt = (v: number, d: number) => {
-  if (!Number.isFinite(v)) return "—";
-  return v.toFixed(d);
-};
+import { useTeleop } from "../stores/teleop";
 
 export function StatusStrip() {
   const intent = useTeleop((s) => s.intent);
@@ -15,28 +10,21 @@ export function StatusStrip() {
   const reconnectAttempts = useTeleop((s) => s.reconnectAttempts);
   const streamQuality = useTeleop((s) => s.streamQuality);
   const v = telemetry.vehicle;
-  const req = telemetry.requested;
 
   const locked = !intent.engage;
-  const stale = streamIsStale(streamQuality) || v.freshness === "unseen" || v.freshness === "missing";
-  const live = !stale && connected && v.freshness === "live";
+  const live = connected && streamQuality === "live" && v.freshness === "live";
 
   // READY gate: only green when fully live and control is engaged.
   const ready =
     connected && !locked && live && !estopArmed && streamQuality === "live";
-  const readyReason = !connected
-    ? "Not connected"
-    : estopArmed
-      ? "ESTOP armed"
-      : locked
-        ? "Control locked — press ENGAGE"
-        : !live
-          ? v.freshness === "unseen"
-            ? "No telemetry yet"
-            : v.freshness === "missing"
-              ? "Telemetry missing"
-              : "Stream degraded"
-          : "OK";
+  const reasons: string[] = [];
+  if (!connected) reasons.push("Not connected");
+  if (estopArmed) reasons.push("ESTOP armed");
+  if (locked) reasons.push("Control locked — press ENGAGE");
+  if (connected && streamQuality !== "live") reasons.push("Stream degraded");
+  if (connected && v.freshness === "unseen") reasons.push("No telemetry yet");
+  if (connected && v.freshness === "missing") reasons.push("Telemetry missing");
+  const readyReason = reasons.length ? reasons.join(" · ") : "OK";
 
   const txState = estopArmed
     ? { label: "ESTOP", cls: "bg-red-600" }
@@ -53,10 +41,6 @@ export function StatusStrip() {
       throttle: 0, brake: 0, steer: 0, gear: "NEUTRAL", engage: false,
     });
   };
-
-  const speed = live ? fmt(v.velocity, 1) : fmt(v.velocity, 1);
-  const steer = live ? fmt(v.steer_angle, 2) : fmt(v.steer_angle, 2);
-  const ageTxt = v.freshness === "unseen" ? "—" : `${v.age_ms.toFixed(0)} ms`;
 
   return (
     <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-zinc-800 bg-zinc-900 px-4 py-2 text-xs">
@@ -78,35 +62,20 @@ export function StatusStrip() {
         </span>
       )}
 
-      <div className={`flex items-center gap-4 font-mono text-zinc-300 ${stale ? "opacity-60" : ""}`}>
-        <span>
-          speed <span className="text-zinc-500">cmd {fmt(req.speed, 1)} · fbk {speed}</span>
-        </span>
-        <span>
-          steer <span className="text-zinc-500">cmd {fmt(req.steer, 2)} · fbk {steer}</span>
-        </span>
-        <span>
-          gear <span className="text-zinc-500">{req.gear} / {v.gear}</span>
-        </span>
-      </div>
-
-      <div className={`flex items-center gap-1.5 text-zinc-400 ${stale ? "opacity-60" : ""}`}>
-        <span className="text-zinc-500">fresh</span>
-        <span
-          className={
-            v.freshness === "live"
-              ? "text-green-400"
-              : v.freshness === "late"
-                ? "text-amber-400"
-                : v.freshness === "missing"
-                  ? "text-red-400"
-                  : "text-zinc-600"
-          }
-        >
-          {v.freshness}
-        </span>
-        <span className="text-zinc-600">({ageTxt})</span>
-      </div>
+      <span
+        className={`rounded px-2 py-0.5 font-medium ${
+          v.freshness === "live"
+            ? "bg-green-600/20 text-green-300"
+            : v.freshness === "late"
+              ? "bg-amber-600/20 text-amber-300"
+              : v.freshness === "missing"
+                ? "bg-red-600/20 text-red-300"
+                : "bg-zinc-800 text-zinc-500"
+        }`}
+        title={`Telemetry ${v.freshness}${v.freshness === "unseen" ? "" : ` · ${v.age_ms.toFixed(0)} ms old`}`}
+      >
+        {v.freshness === "unseen" ? "NO DATA" : v.freshness.toUpperCase()}
+      </span>
 
       <div className="ml-auto flex items-center gap-2">
         <button

@@ -1,11 +1,28 @@
 import { useTeleop } from "../stores/teleop";
 import { INPUT_MODES } from "../lib/schemas";
+import { useEffect, useRef, useState } from "react";
 
 function AxisSlider({ label, value, min, max, step, onChange, accent, disabled, hint }: {
   label: string; value: number; min: number; max: number; step: number;
   onChange: (v: number) => void; accent?: string; disabled?: boolean; hint?: string;
 }) {
   const pct = max > min ? ((value - min) / (max - min)) * 100 : 0;
+  // Numeric draft commits only on Enter/blur to avoid noisy transient intents
+  // while typing (e.g. "0." → "0.7").
+  const [draft, setDraft] = useState(String(value));
+  const [editing, setEditing] = useState(false);
+  const draftRef = useRef(String(value));
+  useEffect(() => { if (!editing) setDraft(String(value)); }, [editing, value]);
+
+  const commit = () => {
+    const n = Number(draftRef.current);
+    if (draftRef.current !== "" && Number.isFinite(n)) {
+      onChange(Math.min(max, Math.max(min, n)));
+    }
+    setDraft(String(value));
+    setEditing(false);
+  };
+
   return (
     <div className="text-[11px] text-zinc-400">
       <div className="flex items-center gap-2">
@@ -15,12 +32,12 @@ function AxisSlider({ label, value, min, max, step, onChange, accent, disabled, 
           onChange={(e) => onChange(Number(e.target.value))}
           className="h-1.5 min-w-0 flex-1 appearance-none rounded-full disabled:opacity-40 disabled:cursor-not-allowed"
           style={{ background: `linear-gradient(to right, ${accent ?? "#3b82f6"} ${pct}%, #27272a ${pct}%)` }} />
-        <input type="number" min={min} max={max} step={step} value={Number.isFinite(value) ? value : ""}
+        <input type="number" min={min} max={max} step={step} value={editing ? draft : String(value)}
           disabled={disabled}
-          onChange={(e) => {
-            const n = Number(e.target.value);
-            if (e.target.value !== "" && Number.isFinite(n)) onChange(Math.min(max, Math.max(min, n)));
-          }}
+          onFocus={() => { setDraft(String(value)); setEditing(true); }}
+          onChange={(e) => { draftRef.current = e.target.value; setDraft(e.target.value); }}
+          onKeyDown={(e) => { if (e.key === "Enter") { (e.target as HTMLInputElement).blur(); } if (e.key === "Escape") { setDraft(String(value)); setEditing(false); } }}
+          onBlur={commit}
           className="w-14 shrink-0 rounded bg-zinc-800 px-1 py-0.5 text-right font-mono text-[11px] text-zinc-100 disabled:opacity-40"
           title={`${min} … ${max}`} />
       </div>
