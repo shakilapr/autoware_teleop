@@ -1,9 +1,52 @@
 @import "tailwindcss";
 
-/* Keyboard operability: always show which small control has focus. */
+/* Keyboard operability: always show which control has focus. */
 button:focus-visible,
 input:focus-visible,
 select:focus-visible {
   outline: 2px solid rgb(96 165 250 / 0.9);
-  outline-offset: 1px;
+  outline-offset: 2px;
 }
+
+/* Accessible range slider styling */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+input[type="range"]::-webkit-slider-runnable-track {
+  height: 8px;
+  border-radius: 9999px;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  margin-top: -5px;
+  background-color: #f4f4f5;
+  height: 18px;
+  width: 18px;
+  border-radius: 9999px;
+  border: 2px solid #18181b;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+  transition: transform 0.1s ease, background-color 0.1s ease;
+}
+
+input[type="range"]:hover::-webkit-slider-thumb {
+  transform: scale(1.15);
+  background-color: #ffffff;
+}
+
+input[type="range"]:active::-webkit-slider-thumb {
+  transform: scale(1.25);
+  background-color: #60a5fa;
+}
+
+input[type="range"]:disabled::-webkit-slider-thumb {
+  cursor: not-allowed;
+  opacity: 0.5;
+  transform: none;
+}
+

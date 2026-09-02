@@ -2,9 +2,7 @@ import { useTeleop, streamIsStale } from "../stores/teleop";
 
 /**
  * ROS2 command output — the /control/command/* topics this teleop node
- * publishes (the Autoware Universe interface it mimics). Values shown are the
- * commanded (requested) values the node is asked to publish, with the
- * node-enforced lock (NEUTRAL/zeros) applied, NOT measured feedback.
+ * publishes (the Autoware Universe interface it mimics).
  */
 export function OutputTopics() {
   const intent = useTeleop((s) => s.intent);
@@ -15,8 +13,6 @@ export function OutputTopics() {
   const locked = !intent.engage;
   const dim = !connected || streamIsStale(streamQuality);
 
-  // Node semantics (mirrors make_control()): axes are scaled by the clamp; while
-  // locked the node forces zeros + NEUTRAL.
   const bp = intent.bridge_params;
   const effThrottle = locked ? 0 : intent.throttle;
   const effBrake = locked ? 0 : intent.brake;
@@ -68,21 +64,33 @@ export function OutputTopics() {
   ];
 
   return (
-    <div className={`rounded-xl border border-zinc-800 bg-zinc-900 p-3 ${dim ? "opacity-70" : ""}`}>
-      <div className="mb-2 flex items-center justify-between">
-        <h2 className="text-sm font-semibold text-zinc-100">ROS2 command output</h2>
-        <span className="text-[10px] text-zinc-500">topics published to mimic Autoware Universe</span>
+    <div className={`mt-4 rounded-xl border border-zinc-800 bg-zinc-900 p-4 shadow-md transition ${dim ? "opacity-75" : ""}`}>
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-base font-bold text-zinc-100 flex items-center gap-2">
+          <span className="h-2 w-2 rounded-full bg-purple-500" />
+          ROS 2 Command Output
+        </h2>
+        <span className="text-xs font-medium text-zinc-400">Autoware Universe Control Interface</span>
       </div>
-      <div className="space-y-1">
+
+      <div className="space-y-2">
         {rows.map((r) => (
-          <div key={r.topic} className="flex items-center gap-2 font-mono text-[11px]">
-            <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${r.danger ? "bg-red-500" : r.live ? "bg-emerald-500" : "bg-zinc-600"}`} />
-            <span className="shrink-0 text-blue-400">{r.topic}</span>
-            <span className="hidden shrink-0 text-zinc-600 lg:inline">{r.type}</span>
-            <span className="ml-auto truncate text-right text-zinc-200">{r.val}</span>
+          <div
+            key={r.topic}
+            className="flex flex-col md:flex-row md:items-center justify-between gap-1.5 rounded-lg bg-zinc-950/60 px-3 py-2 font-mono text-xs border border-zinc-850"
+          >
+            <div className="flex items-center gap-2.5 overflow-hidden">
+              <span className={`h-2 w-2 shrink-0 rounded-full ${r.danger ? "bg-red-500 animate-ping" : r.live ? "bg-emerald-500 shadow-sm shadow-emerald-500/80" : "bg-zinc-600"}`} />
+              <span className="font-semibold text-blue-400">{r.topic}</span>
+              <span className="hidden xl:inline text-zinc-500 text-[11px] font-sans">({r.type})</span>
+            </div>
+            <div className="font-semibold text-zinc-100 md:text-right text-left pl-4 md:pl-0">
+              {r.val}
+            </div>
           </div>
         ))}
       </div>
     </div>
   );
 }
+

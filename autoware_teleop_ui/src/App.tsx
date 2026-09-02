@@ -59,18 +59,43 @@ export default function App() {
   }, [keyDown, keyUp, releaseAll]);
 
   return (
-    <div className="min-h-screen bg-zinc-950 p-6 text-zinc-100">
-      <header className="mb-4 flex items-center justify-between">
-        <h1 className="text-lg font-bold">autoware_teleop</h1>
-        <span className="text-xs text-zinc-500">Autoware Universe extension</span>
-      </header>
-      <StatusStrip />
-      <main className="grid max-w-6xl gap-4 lg:grid-cols-3 md:grid-cols-2">
-        <Console />
-        <Systems />
-        <Dashboard />
-      </main>
-      <OutputTopics />
+    <div className="min-h-screen bg-zinc-950 p-3.5 sm:p-6 text-zinc-100 antialiased">
+      <div className="mx-auto max-w-7xl">
+        <header className="mb-4 flex items-center justify-between gap-2 border-b border-zinc-800/80 pb-3">
+          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-600 text-white font-black text-sm shadow-md shadow-blue-600/30">
+              AV
+            </div>
+            <div className="min-w-0">
+              <h1 className="text-base sm:text-lg font-bold tracking-tight text-white flex flex-wrap items-center gap-1.5 sm:gap-2">
+                <span>Autoware Teleop Console</span>
+                <span className="rounded bg-zinc-800 px-1.5 py-0.5 text-[10px] font-semibold text-zinc-400 border border-zinc-700">
+                  v0.1.0
+                </span>
+              </h1>
+              <p className="text-[11px] sm:text-xs text-zinc-400 truncate">Direct ROS 2 vehicle actuation & telemetry bridge</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0 text-xs text-zinc-400">
+            <span className="hidden md:inline">Universe Extension</span>
+            <span className="rounded-full h-2.5 w-2.5 bg-emerald-500 shadow-sm shadow-emerald-500/80" />
+          </div>
+        </header>
+
+        <StatusStrip />
+
+        <main className="grid gap-4.5 lg:grid-cols-3 md:grid-cols-2 grid-cols-1 items-stretch">
+          <Console />
+          <Systems />
+          <div className="md:col-span-2 lg:col-span-1">
+            <Dashboard />
+          </div>
+        </main>
+
+        <OutputTopics />
+      </div>
     </div>
   );
 }
+
+

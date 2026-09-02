@@ -6,26 +6,28 @@ function Segmented<T extends string>({ options, value, onChange, label, disabled
 }) {
   const active = value;
   return (
-    <div className="flex items-center gap-2">
-      {label && <span className="w-24 shrink-0 text-[11px] text-zinc-500">{label}</span>}
-      <div className={`flex flex-1 rounded-md bg-zinc-800 p-0.5 ${disabled ? "opacity-60" : ""}`}>
+    <div className="space-y-1.5">
+      {label && <span className="block text-xs font-medium text-zinc-400">{label}</span>}
+      <div className={`flex rounded-lg bg-zinc-800 p-1 border border-zinc-700/60 ${disabled ? "opacity-50" : ""}`}>
         {options.map((o) => {
           const isActive = o === active;
-          // When disabled (locked), the stored selection is NOT commanding — use
-          // a muted "stored" style instead of the bright active fill.
           const style = disabled
             ? isActive
-              ? "bg-zinc-700 text-zinc-200"
+              ? "bg-zinc-700 text-zinc-200 border border-zinc-600"
               : "text-zinc-500"
             : isActive
-              ? "bg-blue-600 text-white"
-              : "text-zinc-400 hover:text-zinc-200";
+              ? "bg-blue-600 text-white shadow-sm font-bold"
+              : "text-zinc-400 hover:text-zinc-100 hover:bg-zinc-700/50";
           return (
-            <button key={o}
+            <button
+              key={o}
               disabled={disabled}
               onClick={() => onChange(o)}
-              className={`flex-1 rounded px-1.5 py-0.5 text-[11px] font-medium transition
-                ${disabled ? "cursor-not-allowed" : ""} ${style}`}>
+              title={o}
+              className={`min-h-[36px] flex-1 min-w-0 rounded-md px-1 py-1.5 text-[11px] sm:text-xs font-semibold truncate transition ${
+                disabled ? "cursor-not-allowed" : ""
+              } ${style}`}
+            >
               {o}
             </button>
           );
@@ -39,21 +41,28 @@ function Toggle({ label, on, onClick, disabled }: {
   label: string; on: boolean; onClick: () => void; disabled?: boolean;
 }) {
   return (
-    <button onClick={onClick} disabled={disabled}
-      className={`flex items-center justify-between rounded-md px-2 py-1 text-[11px] transition
-        ${disabled ? "opacity-50 cursor-not-allowed" : ""}
-        ${on ? "bg-emerald-600/20 text-emerald-300 border border-emerald-600/40" : "bg-zinc-800 text-zinc-400 border border-zinc-700"}`}>
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className={`min-h-[36px] w-full flex items-center justify-between gap-2 rounded-lg px-3 py-1.5 text-xs font-bold transition shadow-sm ${
+        disabled ? "opacity-40 cursor-not-allowed" : "hover:border-zinc-500"
+      } ${
+        on
+          ? "bg-amber-500/20 text-amber-300 border-2 border-amber-500 ring-2 ring-amber-500/20 animate-pulse"
+          : "bg-zinc-800 text-zinc-300 border border-zinc-700 hover:bg-zinc-750"
+      }`}
+    >
       <span>{label}</span>
-      <span className={`h-2 w-2 rounded-full ${on ? "bg-emerald-400" : "bg-zinc-600"}`} />
+      <span className={`h-2.5 w-2.5 rounded-full shrink-0 ${on ? "bg-amber-400 shadow-sm shadow-amber-400/80" : "bg-zinc-600"}`} />
     </button>
   );
 }
 
-const GEAR_FULL: Record<string, string> = {
-  PARK: "Park (safe)",
-  DRIVE: "Drive",
-  REVERSE: "Reverse",
-  NEUTRAL: "Neutral (coast)",
+const GEAR_META: Record<string, { full: string; color: string; activeColor: string }> = {
+  PARK: { full: "Park", color: "border-zinc-700 text-zinc-300 hover:bg-zinc-800", activeColor: "bg-zinc-700 text-white border-zinc-500 ring-2 ring-zinc-400" },
+  DRIVE: { full: "Drive", color: "border-blue-800/60 bg-blue-950/20 text-blue-300 hover:bg-blue-900/40", activeColor: "bg-blue-600 text-white border-blue-400 ring-2 ring-blue-400 shadow-md" },
+  REVERSE: { full: "Reverse", color: "border-rose-800/60 bg-rose-950/20 text-rose-300 hover:bg-rose-900/40", activeColor: "bg-rose-600 text-white border-rose-400 ring-2 ring-rose-400 shadow-md" },
+  NEUTRAL: { full: "Neutral", color: "border-emerald-800/60 bg-emerald-950/20 text-emerald-300 hover:bg-emerald-900/40", activeColor: "bg-emerald-600 text-white border-emerald-400 ring-2 ring-emerald-400 shadow-md" },
 };
 
 export function Systems() {
@@ -66,86 +75,108 @@ export function Systems() {
   const setEstop = useTeleop((s) => s.setEstop);
   const estopArmed = useTeleop((s) => s.estopArmed);
 
-  // When locked, only ESTOP remains usable; the rest are disabled so the UI
-  // does not imply a state change the node will ignore (node authority).
   const locked = !intent.engage;
 
   return (
-    <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-3 space-y-2.5">
-      <h2 className="text-sm font-semibold text-zinc-100">Systems</h2>
+    <div className="relative flex flex-col justify-between rounded-xl border border-zinc-800 bg-zinc-900 p-4 space-y-4 shadow-md">
+      <div className="space-y-4">
+        <h2 className="text-base font-bold text-zinc-100 flex items-center gap-2">
+          <span className="h-2 w-2 rounded-full bg-cyan-500" />
+          Vehicle Systems
+        </h2>
 
-      <Segmented options={OPERATION_MODES} value={intent.operation_mode}
-        onChange={setOperationMode} label="Operation" disabled={locked} />
-      <Segmented options={MANUAL_MODES} value={intent.manual_control_mode}
-        onChange={setManualMode} label="Manual" disabled={locked} />
+        <div className="space-y-3">
+          <Segmented options={OPERATION_MODES} value={intent.operation_mode}
+            onChange={setOperationMode} label="Operation Mode" disabled={locked} />
+          <Segmented options={MANUAL_MODES} value={intent.manual_control_mode}
+            onChange={setManualMode} label="Control Mode" disabled={locked} />
+        </div>
 
-      <div className="border-t border-zinc-800 pt-2">
-        <span className="mb-1 flex items-center gap-1 text-[11px] text-zinc-500">
-          Gear
-          <span className="rounded bg-zinc-800 px-1 text-[9px] font-semibold text-zinc-500"
-            title="Gear buttons set the REQUESTED gear; the confirmed gear shows in the dashboard.">
-            REQ
-          </span>
-        </span>
-        <div className="flex gap-1.5">
-          {GEAR.map((g) => {
-            const isActive = intent.gear === g;
-            const isNeutral = g === "NEUTRAL";
-            const isPark = g === "PARK";
-            let style: string;
-            if (locked) {
-              // Node forces NEUTRAL while locked; do not bright-highlight the
-              // stored request as if it were commanding.
-              style = isActive
-                ? "bg-zinc-700 text-zinc-200 border border-zinc-600"
-                : "bg-zinc-800 text-zinc-500";
-            } else if (isActive) {
-              style = isNeutral
-                ? "bg-emerald-600 text-white ring-1 ring-emerald-400"
-                : isPark
-                  ? "bg-zinc-600 text-white"
-                  : "bg-blue-600 text-white";
-            } else {
-              style = isNeutral
-                ? "bg-emerald-900/40 text-emerald-300 border border-emerald-800"
-                : isPark
-                  ? "bg-zinc-800 text-zinc-400"
-                  : "bg-zinc-800 text-zinc-300 hover:bg-zinc-700";
-            }
-            return (
-              <button key={g} onClick={() => setGear(g)} disabled={locked}
-                title={`${g} — ${GEAR_FULL[g] ?? ""}${isActive ? " (requested)" : ""}`}
-                className={`flex-1 rounded-md px-1.5 py-1 text-[11px] font-semibold transition
-                  ${locked ? "cursor-not-allowed" : ""} ${style}`}>
-                {g[0]}
-              </button>
-            );
-          })}
+        {/* Transmission Gear Selector */}
+        <div className="border-t border-zinc-800 pt-3 space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-zinc-300">Transmission Gear</span>
+            <span className="rounded bg-zinc-800 px-2 py-0.5 text-[10px] font-bold text-zinc-400 border border-zinc-700"
+              title="Gear buttons set the REQUESTED gear; the confirmed vehicle gear is shown in the dashboard.">
+              REQUESTED GEAR
+            </span>
+          </div>
+
+          <div className="grid grid-cols-4 gap-1.5 sm:gap-2">
+            {GEAR.map((g) => {
+              const isActive = intent.gear === g;
+              const meta = GEAR_META[g];
+              let btnClass: string;
+
+              if (locked) {
+                btnClass = isActive
+                  ? "bg-zinc-800 text-zinc-300 border-2 border-zinc-600"
+                  : "bg-zinc-900 text-zinc-500 border border-zinc-800";
+              } else if (isActive) {
+                btnClass = meta.activeColor;
+              } else {
+                btnClass = `border ${meta.color} bg-zinc-900/60`;
+              }
+
+              return (
+                <button
+                  key={g}
+                  onClick={() => setGear(g)}
+                  disabled={locked}
+                  title={`${g} — ${meta.full}${isActive ? " (Requested)" : ""}`}
+                  className={`min-h-[44px] flex flex-col items-center justify-center rounded-lg p-1 transition active:scale-95 min-w-0 ${
+                    locked ? "cursor-not-allowed opacity-50" : ""
+                  } ${btnClass}`}
+                >
+                  <span className="font-mono text-base font-bold leading-none">{g[0]}</span>
+                  <span className="text-[10px] font-medium tracking-tight opacity-90 truncate">{meta.full}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Lighting & Indicators */}
+        <div className="border-t border-zinc-800 pt-3 space-y-2">
+          <span className="block text-xs font-semibold text-zinc-300">Lighting & Indicators</span>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            <div className="sm:col-span-2">
+              <Segmented
+                options={["NONE", "LEFT", "RIGHT"] as const}
+                value={intent.turn_indicator}
+                onChange={setTurn}
+                label="Turn Signals"
+                disabled={locked}
+              />
+            </div>
+            <div className="flex flex-col justify-end">
+              <Toggle label="Hazard" on={intent.hazard} onClick={toggleHazard} disabled={locked} />
+            </div>
+          </div>
         </div>
       </div>
 
-      <div className="border-t border-zinc-800 pt-2">
-        <span className="mb-1 block text-[11px] text-zinc-500">Lights</span>
-        <div className="flex items-center gap-1.5">
-          <Segmented options={["NONE", "LEFT", "RIGHT"] as const} value={intent.turn_indicator}
-            onChange={setTurn} label="Turn" disabled={locked} />
-          <Toggle label="Hazard" on={intent.hazard} onClick={toggleHazard} disabled={locked} />
-        </div>
+      {/* Safety Emergency Action Bar */}
+      <div className="border-t border-zinc-800 pt-3">
+        {estopArmed ? (
+          <button
+            onClick={() => setEstop(false)}
+            className="min-h-[42px] w-full rounded-lg border-2 border-red-500 bg-red-950/80 px-4 py-2 text-sm font-bold text-red-200 transition hover:bg-red-900 active:scale-95 animate-pulse shadow-md"
+            title="Clear emergency stop state"
+          >
+            CLEAR EMERGENCY STOP (ARMED)
+          </button>
+        ) : (
+          <button
+            onClick={() => setEstop(true)}
+            className="min-h-[42px] w-full rounded-lg bg-red-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-red-500 active:scale-95 shadow-md shadow-red-600/30"
+            title="Arm vehicle emergency stop"
+          >
+            EMERGENCY STOP (ESTOP)
+          </button>
+        )}
       </div>
-
-      {estopArmed ? (
-        <button onClick={() => setEstop(false)}
-          className="w-full rounded-md px-2 py-1.5 text-xs font-bold text-zinc-300 border border-zinc-700 hover:bg-zinc-700 transition"
-          title="Clear emergency stop">
-          CLEAR ESTOP
-        </button>
-      ) : (
-        <button onClick={() => setEstop(true)}
-          className="w-full rounded-md px-2 py-1.5 text-xs font-bold bg-red-600 text-white hover:bg-red-500 transition"
-          title="Arm emergency stop">
-          EMERGENCY STOP
-        </button>
-      )}
     </div>
   );
 }
+

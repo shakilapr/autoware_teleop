@@ -24,22 +24,41 @@ function AxisSlider({ label, value, min, max, step, onChange, accent, disabled, 
   };
 
   return (
-    <div className="text-[11px] text-zinc-400">
-      <div className="flex items-center gap-2">
-        <span className="w-24 shrink-0 truncate" title={`${label}${hint ? ` (${hint})` : ""}`}>{label}</span>
-        <input type="range" min={min} max={max} step={step} value={value}
-          disabled={disabled}
-          onChange={(e) => onChange(Number(e.target.value))}
-          className="h-1.5 min-w-0 flex-1 appearance-none rounded-full disabled:opacity-40 disabled:cursor-not-allowed"
-          style={{ background: `linear-gradient(to right, ${accent ?? "#3b82f6"} ${pct}%, #27272a ${pct}%)` }} />
-        <input type="number" min={min} max={max} step={step} value={editing ? draft : String(value)}
+    <div className="text-xs text-zinc-300">
+      <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+        <span className="w-18 sm:w-20 shrink-0 font-medium truncate text-[11px] sm:text-xs" title={`${label}${hint ? ` (${hint})` : ""}`}>
+          {label}
+        </span>
+        <div className="relative flex-1 min-w-0 flex items-center">
+          <input
+            type="range"
+            min={min}
+            max={max}
+            step={step}
+            value={value}
+            disabled={disabled}
+            onChange={(e) => onChange(Number(e.target.value))}
+            className="h-2 w-full appearance-none rounded-full disabled:opacity-40 disabled:cursor-not-allowed"
+            style={{ background: `linear-gradient(to right, ${accent ?? "#3b82f6"} ${pct}%, #27272a ${pct}%)` }}
+          />
+        </div>
+        <input
+          type="number"
+          min={min}
+          max={max}
+          step={step}
+          value={editing ? draft : String(value)}
           disabled={disabled}
           onFocus={() => { setDraft(String(value)); setEditing(true); }}
           onChange={(e) => { draftRef.current = e.target.value; setDraft(e.target.value); }}
-          onKeyDown={(e) => { if (e.key === "Enter") { (e.target as HTMLInputElement).blur(); } if (e.key === "Escape") { setDraft(String(value)); setEditing(false); } }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+            if (e.key === "Escape") { setDraft(String(value)); setEditing(false); }
+          }}
           onBlur={commit}
-          className="w-14 shrink-0 rounded bg-zinc-800 px-1 py-0.5 text-right font-mono text-[11px] text-zinc-100 disabled:opacity-40"
-          title={`${min} … ${max}`} />
+          className="h-8 w-14 sm:w-16 shrink-0 rounded-md border border-zinc-700 bg-zinc-800 px-1.5 text-right font-mono text-[11px] sm:text-xs text-zinc-100 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 disabled:opacity-40"
+          title={`${min} … ${max}`}
+        />
       </div>
     </div>
   );
@@ -49,14 +68,20 @@ function Segmented<T extends string>({ options, value, onChange, label }: {
   options: readonly T[]; value: T; onChange: (v: T) => void; label?: string;
 }) {
   return (
-    <div className="flex items-center gap-2">
-      {label && <span className="w-24 shrink-0 text-[11px] text-zinc-500">{label}</span>}
-      <div className="flex flex-1 rounded-md bg-zinc-800 p-0.5">
+    <div className="space-y-1.5">
+      {label && <span className="block text-xs font-medium text-zinc-400">{label}</span>}
+      <div className="flex rounded-lg bg-zinc-800 p-1 border border-zinc-700/60">
         {options.map((o) => (
-          <button key={o}
+          <button
+            key={o}
             onClick={() => onChange(o)}
-            className={`flex-1 rounded px-1.5 py-0.5 text-[11px] font-medium transition
-              ${value === o ? "bg-blue-600 text-white" : "text-zinc-400 hover:text-zinc-200"}`}>
+            title={o}
+            className={`min-h-[34px] flex-1 min-w-0 rounded-md px-2 py-1.5 text-xs font-semibold truncate transition ${
+              value === o
+                ? "bg-blue-600 text-white shadow-sm"
+                : "text-zinc-400 hover:text-zinc-100 hover:bg-zinc-700/50"
+            }`}
+          >
             {o}
           </button>
         ))}
@@ -67,14 +92,11 @@ function Segmented<T extends string>({ options, value, onChange, label }: {
 
 /**
  * Read-only command meter for keyboard mode: shows the axis fill + the derived
- * physical command the operator is requesting (NOT feedback). Feedback lives in
- * the Dashboard. Axis is the commanded value in [-1,1]; `physical` is the
- * clamp-scaled engineering value shown alongside.
+ * physical command the operator is requesting.
  */
 function CommandMeter({ label, axis, accent, physical }: {
   label: string; axis: number; accent: string; physical: string;
 }) {
-  // Center for bipolar axes (-1..1), left-anchored for unipolar (brake 0..1).
   const bipolar = axis < 0;
   const pct = Math.min(100, Math.abs(axis) * 100);
   const fillStyle = bipolar
@@ -85,28 +107,33 @@ function CommandMeter({ label, axis, accent, physical }: {
         backgroundImage: `linear-gradient(to right, ${accent} ${pct / 2}%, #3f3f46 ${pct / 2}%)`,
       }
     : undefined;
+
   return (
-    <div className="text-[11px] text-zinc-400">
-      <div className="flex items-center gap-2">
-        <span className="w-24 shrink-0 truncate" title={label}>{label}</span>
+    <div className="text-xs text-zinc-300">
+      <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+        <span className="w-18 sm:w-20 shrink-0 font-medium truncate text-[11px] sm:text-xs" title={label}>{label}</span>
         {bipolar ? (
-          <div className="relative h-1.5 min-w-0 flex-1 rounded-full bg-zinc-800" style={trackStyle}>
-            <div className="absolute left-1/2 top-0 h-full w-px bg-zinc-600" />
+          <div className="relative h-2.5 min-w-[80px] flex-1 rounded-full bg-zinc-800 border border-zinc-700" style={trackStyle}>
+            <div className="absolute left-1/2 top-0 h-full w-0.5 bg-zinc-400" />
             <div
-              className={`absolute top-0 h-full rounded-full ${accent.includes("ef4444") ? "bg-[#ef4444]" : "bg-[#22c55e]"}`}
+              className={`absolute top-0 h-full rounded-full ${accent.includes("ef4444") ? "bg-red-500" : "bg-emerald-500"}`}
               style={{ left: "50%", ...fillStyle }}
             />
           </div>
         ) : (
-          <div className="h-1.5 min-w-0 flex-1 rounded-full bg-zinc-800">
-            <div className={`h-full rounded-full ${accent.includes("ef4444") ? "bg-[#ef4444]" : "bg-[#22c55e]"}`} style={fillStyle} />
+          <div className="h-2.5 min-w-[80px] flex-1 rounded-full bg-zinc-800 border border-zinc-700">
+            <div
+              className={`h-full rounded-full ${accent.includes("ef4444") ? "bg-red-500" : "bg-emerald-500"}`}
+              style={fillStyle}
+            />
           </div>
         )}
-        <span className="w-24 shrink-0 text-right font-mono text-zinc-200">{physical}</span>
+        <span className="w-22 sm:w-24 shrink-0 text-right font-mono text-[11px] sm:text-xs font-semibold text-zinc-100">{physical}</span>
       </div>
     </div>
   );
 }
+
 
 function fmtCmd(v: number, unit: string) {
   const s = v >= 0 ? "" : "-";
@@ -121,27 +148,28 @@ function Keycaps({ keys }: { keys: Partial<Record<string, boolean>> }) {
     ["D", keys["d"], "steer right"],
     ["SPACE", keys["space"], "brake"],
   ] as const;
+
   return (
-    <div className="border-t border-zinc-800 pt-2">
-      <div className="flex flex-wrap gap-1">
+    <div className="rounded-lg border border-zinc-800 bg-zinc-950/60 p-2.5 space-y-2">
+      <div className="flex flex-wrap items-center gap-1.5">
         {defs.map(([label, active, hint]) => (
           <kbd
             key={label}
             title={hint}
-            className={`rounded px-1.5 py-0.5 text-[10px] font-mono font-semibold transition ${
+            className={`min-h-[30px] rounded-md px-3 py-1 font-mono text-xs font-bold transition shadow-sm ${
               active
-                ? "bg-blue-600 text-white ring-1 ring-blue-400"
-                : "bg-zinc-800 text-zinc-500"
+                ? "bg-blue-600 text-white ring-2 ring-blue-400 scale-105"
+                : "bg-zinc-800 text-zinc-300 border border-zinc-700"
             }`}
           >
             {label}
           </kbd>
         ))}
       </div>
-      <p className="mt-1 text-[10px] leading-tight text-zinc-600">
-        Hold to move — <span className="text-zinc-400">W/S</span> throttle ·{" "}
-        <span className="text-zinc-400">A/D</span> steer · <span className="text-zinc-400">Space</span>{" "}
-        brake
+      <p className="text-xs leading-relaxed text-zinc-400">
+        Hold keys to drive — <span className="font-semibold text-zinc-200">W/S</span> throttle ·{" "}
+        <span className="font-semibold text-zinc-200">A/D</span> steer ·{" "}
+        <span className="font-semibold text-zinc-200">Space</span> brake
       </p>
     </div>
   );
@@ -169,91 +197,169 @@ export function Console() {
           : "CONNECTING";
 
   return (
-    <div className="relative rounded-xl border border-zinc-800 bg-zinc-900 p-3 space-y-2.5">
-      <div className="flex items-center justify-between">
-        <h2 className="text-sm font-semibold text-zinc-100">Drive</h2>
-        <div className="flex items-center gap-2">
-          <span
-            className={`rounded px-1.5 py-0.5 text-[10px] font-bold ${
-              streamQuality === "live"
-                ? "bg-green-600 text-white"
-                : streamQuality === "delayed"
-                  ? "bg-amber-600 text-white"
-                  : "bg-red-600 text-white"
-            }`}
-          >
-            {qLabel}
-          </span>
-          <span className="text-xs text-zinc-500">10 Hz</span>
-        </div>
-      </div>
-
-      <Segmented options={INPUT_MODES} value={intent.input_mode}
-        onChange={setInputMode} label="Input" />
-      {isKeyboard && <Keycaps keys={keys} />}
-
-      <button onClick={toggleEngage}
-        className={`w-full rounded-md px-2 py-1 text-xs font-bold transition
-          ${intent.engage ? "bg-green-600 text-white" : "bg-zinc-800 text-green-400 hover:bg-zinc-700"}`}>
-        {intent.engage ? "ENGAGED" : "ENGAGE"}
-      </button>
-
-      <div className="relative">
-        {/* LOCKED overlay covers the command surface (axes + limits) below ENGAGE,
-            leaving the ENGAGE button reachable to unlock. */}
-        {locked && (
-          <div className="absolute inset-0 z-10 flex items-center justify-center rounded-xl
-            bg-zinc-950/70 backdrop-blur-sm">
-            <div className="text-center">
-              <div className="text-lg font-bold tracking-widest text-white">LOCKED</div>
-              <div className="mt-1 text-xs text-zinc-400">Press ENGAGE to unlock</div>
-            </div>
+    <div className="relative flex flex-col justify-between rounded-xl border border-zinc-800 bg-zinc-900 p-4 space-y-4 shadow-md">
+      <div className="space-y-3.5">
+        <div className="flex items-center justify-between">
+          <h2 className="text-base font-bold text-zinc-100 flex items-center gap-2">
+            <span className="h-2 w-2 rounded-full bg-blue-500" />
+            Drive Control
+          </h2>
+          <div className="flex items-center gap-2">
+            <span
+              className={`rounded-lg px-2.5 py-1 text-xs font-bold ${
+                streamQuality === "live"
+                  ? "bg-emerald-600 text-white shadow-sm shadow-emerald-600/30"
+                  : streamQuality === "delayed"
+                    ? "bg-amber-600 text-white"
+                    : "bg-red-600 text-white"
+              }`}
+            >
+              {qLabel}
+            </span>
+            <span className="text-xs font-medium text-zinc-400">10 Hz</span>
           </div>
-        )}
+        </div>
 
-        <div className="space-y-1.5">
-          <div className="border-t border-zinc-800 pt-2">
-          {isKeyboard ? (
-            // Keyboard mode: read-only command meters (what the keys ask for).
-            <div className="space-y-1.5">
-              <CommandMeter label="Throttle" axis={intent.throttle} accent="#22c55e"
-                physical={`cmd ${fmtCmd(intent.throttle * (intent.throttle < 0 ? bp.max_speed_reverse : bp.max_speed_forward), "m/s")}`} />
-              <CommandMeter label="Brake" axis={intent.brake} accent="#ef4444"
-                physical={`cmd ${fmtCmd(intent.brake * bp.max_deceleration, "m/s²")}`} />
-              <CommandMeter label="Steering" axis={intent.steer} accent="#3b82f6"
-                physical={`cmd ${fmtCmd(intent.steer * bp.max_steering_angle, "rad")}`} />
-            </div>
-          ) : (
-            <div className="space-y-1.5">
-              <AxisSlider label="Throttle" value={intent.throttle} min={-1} max={1} step={0.01}
-                onChange={(v) => setIntent({ throttle: v })} accent="#22c55e" disabled={locked} />
-              <AxisSlider label="Brake" value={intent.brake} min={0} max={1} step={0.01}
-                onChange={(v) => setIntent({ brake: v })} accent="#ef4444" disabled={locked} />
-              <AxisSlider label="Steering" value={intent.steer} min={-1} max={1} step={0.01}
-                onChange={(v) => setIntent({ steer: v })} accent="#3b82f6" disabled={locked} />
+        <Segmented options={INPUT_MODES} value={intent.input_mode} onChange={setInputMode} label="Input Mode" />
+        {isKeyboard && <Keycaps keys={keys} />}
+
+        <button
+          onClick={toggleEngage}
+          className={`min-h-[42px] w-full rounded-lg px-4 py-2 text-sm font-bold tracking-wide transition active:scale-[0.99] ${
+            intent.engage
+              ? "bg-emerald-600 text-white shadow-lg shadow-emerald-600/30 ring-2 ring-emerald-400 hover:bg-emerald-500"
+              : "border-2 border-emerald-500/70 bg-emerald-950/30 text-emerald-300 hover:bg-emerald-900/50 hover:border-emerald-400"
+          }`}
+        >
+          {intent.engage ? "✓ VEHICLE ENGAGED (CLICK TO LOCK)" : "⚡ PRESS TO ENGAGE CONTROL"}
+        </button>
+
+        <div className="relative rounded-lg p-1">
+          {/* LOCKED overlay covers command surface when disengaged */}
+          {locked && (
+            <div className="absolute inset-0 z-10 flex items-center justify-center rounded-lg bg-zinc-950/80 backdrop-blur-[2px] border border-zinc-800">
+              <div className="text-center p-3">
+                <div className="text-sm font-bold tracking-widest text-zinc-200">CONTROL LOCKED</div>
+                <div className="mt-1 text-xs text-zinc-400">Press ENGAGE above to enable throttle & steering</div>
+              </div>
             </div>
           )}
-        </div>
 
-        {/* Authority limits: the manual speed clamp. Usable whenever engaged
-            (raw AND keyboard) — the node clamps commanded output to these. */}
-        <div className="border-t border-zinc-800 pt-2">
-          <span className="mb-1 block text-[11px] text-zinc-500">
-            Authority limits (clamp{isKeyboard ? " · live while keyboarding" : ""})
-          </span>
-          <div className="grid grid-cols-2 gap-x-2 gap-y-1.5">
-            <AxisSlider label="Fwd m/s" value={bp.max_speed_forward} min={0} max={3} step={0.05}
-              onChange={(v) => setLimit({ max_speed_forward: v })} accent="#22c55e" hint="0–3 m/s" disabled={locked} />
-            <AxisSlider label="Rev m/s" value={bp.max_speed_reverse} min={0} max={0.5} step={0.05}
-              onChange={(v) => setLimit({ max_speed_reverse: v })} accent="#ef4444" hint="0–0.5 m/s" disabled={locked} />
-            <AxisSlider label="Steer rad" value={bp.max_steering_angle} min={0} max={0.747} step={0.01}
-              onChange={(v) => setLimit({ max_steering_angle: v })} accent="#3b82f6" hint="0–0.747 rad" disabled={locked} />
-            <AxisSlider label="Brk m/s²" value={bp.max_deceleration} min={0} max={5} step={0.1}
-              onChange={(v) => setLimit({ max_deceleration: v })} accent="#f59e0b" hint="0–5 m/s²" disabled={locked} />
+          <div className="space-y-3 pt-1">
+            {isKeyboard ? (
+              // Keyboard mode: command meters
+              <div className="space-y-2.5 rounded-lg bg-zinc-950/40 p-2.5 border border-zinc-800/80">
+                <CommandMeter
+                  label="Throttle"
+                  axis={intent.throttle}
+                  accent="#22c55e"
+                  physical={`cmd ${fmtCmd(intent.throttle * (intent.throttle < 0 ? bp.max_speed_reverse : bp.max_speed_forward), "m/s")}`}
+                />
+                <CommandMeter
+                  label="Brake"
+                  axis={intent.brake}
+                  accent="#ef4444"
+                  physical={`cmd ${fmtCmd(intent.brake * bp.max_deceleration, "m/s²")}`}
+                />
+                <CommandMeter
+                  label="Steering"
+                  axis={intent.steer}
+                  accent="#3b82f6"
+                  physical={`cmd ${fmtCmd(intent.steer * bp.max_steering_angle, "rad")}`}
+                />
+              </div>
+            ) : (
+              // Raw slider mode
+              <div className="space-y-2.5 rounded-lg bg-zinc-950/40 p-2.5 border border-zinc-800/80">
+                <AxisSlider
+                  label="Throttle"
+                  value={intent.throttle}
+                  min={-1}
+                  max={1}
+                  step={0.01}
+                  onChange={(v) => setIntent({ throttle: v })}
+                  accent="#22c55e"
+                  disabled={locked}
+                />
+                <AxisSlider
+                  label="Brake"
+                  value={intent.brake}
+                  min={0}
+                  max={1}
+                  step={0.01}
+                  onChange={(v) => setIntent({ brake: v })}
+                  accent="#ef4444"
+                  disabled={locked}
+                />
+                <AxisSlider
+                  label="Steering"
+                  value={intent.steer}
+                  min={-1}
+                  max={1}
+                  step={0.01}
+                  onChange={(v) => setIntent({ steer: v })}
+                  accent="#3b82f6"
+                  disabled={locked}
+                />
+              </div>
+            )}
+
+            {/* Authority limits: full-width stacked list to avoid crushing sliders */}
+            <div className="border-t border-zinc-800 pt-2.5 space-y-2">
+              <span className="block text-xs font-semibold text-zinc-300">
+                Authority Limits (Speed & Decel Clamps)
+              </span>
+              <div className="space-y-2 rounded-lg bg-zinc-950/40 p-2.5 border border-zinc-800/80">
+                <AxisSlider
+                  label="Fwd Speed"
+                  value={bp.max_speed_forward}
+                  min={0}
+                  max={3}
+                  step={0.05}
+                  onChange={(v) => setLimit({ max_speed_forward: v })}
+                  accent="#22c55e"
+                  hint="0–3 m/s"
+                  disabled={locked}
+                />
+                <AxisSlider
+                  label="Rev Speed"
+                  value={bp.max_speed_reverse}
+                  min={0}
+                  max={0.5}
+                  step={0.05}
+                  onChange={(v) => setLimit({ max_speed_reverse: v })}
+                  accent="#ef4444"
+                  hint="0–0.5 m/s"
+                  disabled={locked}
+                />
+                <AxisSlider
+                  label="Max Steer"
+                  value={bp.max_steering_angle}
+                  min={0}
+                  max={0.747}
+                  step={0.01}
+                  onChange={(v) => setLimit({ max_steering_angle: v })}
+                  accent="#3b82f6"
+                  hint="0–0.747 rad"
+                  disabled={locked}
+                />
+                <AxisSlider
+                  label="Max Brake"
+                  value={bp.max_deceleration}
+                  min={0}
+                  max={5}
+                  step={0.1}
+                  onChange={(v) => setLimit({ max_deceleration: v })}
+                  accent="#f59e0b"
+                  hint="0–5 m/s²"
+                  disabled={locked}
+                />
+              </div>
+            </div>
           </div>
-        </div>
         </div>
       </div>
     </div>
   );
 }
+
