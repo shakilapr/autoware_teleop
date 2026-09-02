@@ -10,6 +10,9 @@ float32 throttle   # accelerator axis
 float32 brake      # brake axis, [0, 1]
 float32 steer      # steering axis, [-1, 1]
 
+# Input mode: raw (sliders) or keyboard (WASD).
+uint8 input_mode   # 0=raw 1=keyboard
+
 # Gear request.
 uint8 gear         # autoware_vehicle_msgs/GearCommand constants
 

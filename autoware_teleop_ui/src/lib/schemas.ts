@@ -5,6 +5,9 @@ import { z } from "zod";
 export const GEAR = ["PARK", "DRIVE", "REVERSE", "NEUTRAL"] as const;
 export type Gear = (typeof GEAR)[number];
 
+export const INPUT_MODES = ["raw", "keyboard"] as const;
+export type InputMode = (typeof INPUT_MODES)[number];
+
 export const OPERATION_MODES = ["STOP", "AUTONOMOUS", "LOCAL", "REMOTE"] as const;
 export type OperationMode = (typeof OPERATION_MODES)[number];
 
@@ -32,6 +35,7 @@ export const BridgeParamsSchema = z.object({
 export type BridgeParams = z.infer<typeof BridgeParamsSchema>;
 
 export const IntentSchema = z.object({
+  input_mode: z.enum(INPUT_MODES).default("raw"),
   throttle: z.number().min(-1).max(1),
   brake: z.number().min(0).max(1),
   steer: z.number().min(-1).max(1),
@@ -85,6 +89,7 @@ export const defaultBridgeParams: BridgeParams = {
 };
 
 export const defaultIntent: Intent = {
+  input_mode: "raw",
   throttle: 0, brake: 0, steer: 0, gear: "NEUTRAL",
   turn_indicator: "NONE", hazard: false,
   operation_mode: "STOP", manual_control_mode: "VELOCITY", engage: false,

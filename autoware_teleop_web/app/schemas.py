@@ -27,6 +27,7 @@ from pydantic import BaseModel, Field
 # Intent (client -> node), one object per control tick
 # ---------------------------------------------------------------------------
 GearLiteral = Literal["PARK", "DRIVE", "REVERSE", "NEUTRAL"]
+InputModeLiteral = Literal["raw", "keyboard"]
 OperationModeLiteral = Literal["STOP", "AUTONOMOUS", "LOCAL", "REMOTE"]
 ManualModeLiteral = Literal["PEDALS", "ACCELERATION", "VELOCITY"]
 TurnLiteral = Literal["NONE", "LEFT", "RIGHT"]
@@ -77,6 +78,7 @@ class Intent(BaseModel):
     brake: float = Field(default=0.0, ge=0.0, le=1.0)
     steer: float = Field(default=0.0, ge=-1.0, le=1.0)
     gear: GearLiteral = Field(default="NEUTRAL")
+    input_mode: InputModeLiteral = Field(default="raw")
     turn_indicator: TurnLiteral = Field(default="NONE")
     hazard: bool = False
     operation_mode: OperationModeLiteral = Field(default="STOP")

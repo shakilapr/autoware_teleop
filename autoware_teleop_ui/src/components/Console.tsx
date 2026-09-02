@@ -1,10 +1,10 @@
 import { useTeleop } from "../stores/teleop";
-import { GEAR, MANUAL_MODES, OPERATION_MODES, TEST_MODES } from "../lib/schemas";
+import { GEAR, INPUT_MODES, MANUAL_MODES, OPERATION_MODES, TEST_MODES } from "../lib/schemas";
 import type { BridgeParams } from "../lib/schemas";
 
-function AxisSlider({ label, value, min, max, step, onChange, accent }: {
+function AxisSlider({ label, value, min, max, step, onChange, accent, disabled }: {
   label: string; value: number; min: number; max: number; step: number;
-  onChange: (v: number) => void; accent?: string;
+  onChange: (v: number) => void; accent?: string; disabled?: boolean;
 }) {
   const pct = ((value - min) / (max - min)) * 100;
   return (
@@ -14,8 +14,9 @@ function AxisSlider({ label, value, min, max, step, onChange, accent }: {
         <span className="font-mono">{value.toFixed(2)}</span>
       </div>
       <input type="range" min={min} max={max} step={step} value={value}
+        disabled={disabled}
         onChange={(e) => onChange(Number(e.target.value))}
-        className="w-full h-2 appearance-none rounded-full"
+        className="w-full h-2 appearance-none rounded-full disabled:opacity-40 disabled:cursor-not-allowed"
         style={{ background: `linear-gradient(to right, ${accent ?? "#3b82f6"} ${pct}%, #27272a ${pct}%)` }} />
     </div>
   );
@@ -65,17 +66,24 @@ export function Console() {
   const setBridgeParam = useTeleop((s) => s.setBridgeParam);
   const toggleEstop = useTeleop((s) => s.toggleEstop);
   const estopArmed = useTeleop((s) => s.estopArmed);
+  const setInputMode = useTeleop((s) => s.setInputMode);
   const bp = intent.bridge_params;
+  const isKeyboard = intent.input_mode === "keyboard";
+  const locked = !intent.engage;
 
   const onBridgeParam = (key: keyof BridgeParams) => (on: boolean) =>
     setBridgeParam({ [key]: on } as Partial<BridgeParams>);
 
   return (
-    <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-4 space-y-4">
+    <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-4 space-y-4 relative">
       <div className="flex items-center justify-between">
         <h2 className="text-sm font-semibold text-zinc-100">Game Console</h2>
         <span className="text-xs text-zinc-500">10 Hz</span>
       </div>
+
+      {/* Input mode toggle */}
+      <Segmented options={INPUT_MODES} value={intent.input_mode}
+        onChange={setInputMode} label="Input Mode" />
 
       {/* Operation + manual mode toggles */}
       <Segmented options={OPERATION_MODES} value={intent.operation_mode}
@@ -93,11 +101,11 @@ export function Console() {
       {/* Drive axes */}
       <div className="space-y-3">
         <AxisSlider label="Throttle" value={intent.throttle} min={-1} max={1} step={0.01}
-          onChange={(v) => setIntent({ throttle: v })} accent="#22c55e" />
+          onChange={(v) => setIntent({ throttle: v })} accent="#22c55e" disabled={isKeyboard || locked} />
         <AxisSlider label="Brake" value={intent.brake} min={0} max={1} step={0.01}
-          onChange={(v) => setIntent({ brake: v })} accent="#ef4444" />
+          onChange={(v) => setIntent({ brake: v })} accent="#ef4444" disabled={isKeyboard || locked} />
         <AxisSlider label="Steering" value={intent.steer} min={-1} max={1} step={0.01}
-          onChange={(v) => setIntent({ steer: v })} accent="#3b82f6" />
+          onChange={(v) => setIntent({ steer: v })} accent="#3b82f6" disabled={isKeyboard || locked} />
       </div>
 
       {/* Gear */}
@@ -138,6 +146,20 @@ export function Console() {
           ${estopArmed ? "bg-red-600 text-white" : "bg-zinc-800 text-red-400 hover:bg-zinc-700"}`}>
         {estopArmed ? "EMERGENCY STOP (ACTIVE)" : "EMERGENCY STOP"}
       </button>
+
+      {/* Locked overlay */}
+      {(locked || isKeyboard) && (
+        <div className="absolute inset-0 z-10 flex items-center justify-center rounded-xl
+          bg-zinc-950/70 backdrop-blur-sm">
+          <div className="text-center">
+            <div className="text-lg font-bold tracking-widest text-white">
+              {locked ? "LOCKED" : "KEYBOARD MODE"}
+            </div>
+            {locked && <div className="mt-1 text-xs text-zinc-400">Press ENGAGE to unlock</div>}
+            {isKeyboard && !locked && <div className="mt-1 text-xs text-zinc-400">WASD + Space to drive</div>}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

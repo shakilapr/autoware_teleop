@@ -108,6 +108,7 @@ class TeleopRosBridge(Node):
         self._steer = 0.0
         self._gear = GearCommand.NEUTRAL
         self._estop = 0
+        self._input_mode = 0
         self._turn = 0
         self._hazard = False
         self._operation_mode = 0
@@ -142,6 +143,8 @@ class TeleopRosBridge(Node):
         gear = intent.get("gear", "NEUTRAL")
         self._gear = GEAR_MAP.get(gear, GearCommand.NEUTRAL)
         self._estop = max(0, int(intent.get("estop", 0)))
+        self._input_mode = {"raw": 0, "keyboard": 1}.get(
+            intent.get("input_mode", "raw"), 0)
 
         # New fields (light/op-mode/test-mode/bridge params) — cached and
         # forwarded verbatim on the next intent tick.
@@ -180,6 +183,7 @@ class TeleopRosBridge(Node):
         msg.brake = float(self._brake)
         msg.steer = float(self._steer)
         msg.gear = self._gear
+        msg.input_mode = self._input_mode
         msg.turn_indicator = self._turn
         msg.hazard = self._hazard
         msg.operation_mode = self._operation_mode
