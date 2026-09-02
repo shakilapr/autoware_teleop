@@ -3,6 +3,7 @@ import { Console } from "./components/Console";
 import { Systems } from "./components/Systems";
 import { Dashboard } from "./components/Dashboard";
 import { StatusStrip } from "./components/StatusStrip";
+import { OutputTopics } from "./components/OutputTopics";
 import { useTeleop } from "./stores/teleop";
 
 export default function App() {
@@ -69,6 +70,7 @@ export default function App() {
         <Systems />
         <Dashboard />
       </main>
+      <OutputTopics />
     </div>
   );
 }
