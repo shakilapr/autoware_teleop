@@ -50,6 +50,72 @@ let _retry = 0;
 let _reconnectTimer: number | undefined;
 let _watch: number | undefined;
 
+// ---- game-like keyboard ramp ----
+// Holding a key slowly builds the axis (like a game trigger); releasing ramps
+// it back to neutral. Units are axis-units per second.
+const RAMP_MS = 50;           // 20 Hz axis integrator
+const THROTTLE_RISE = 1.6;    // full throttle in ~0.6 s
+const THROTTLE_FALL = 2.4;    // decay to neutral
+const STEER_RISE = 3.0;       // snappier steering
+const STEER_FALL = 4.5;
+const BRAKE_RISE = 6.0;       // brake comes on fast
+const BRAKE_FALL = 9.0;
+const KEEPALIVE_MS = 300;     // < node deadman (500 ms)
+
+let _rampTimer: number | undefined;
+let _lastRampSend = 0;
+
+function _rampToward(cur: number, target: number, rise: number, fall: number, dt: number): number {
+  const diff = target - cur;
+  if (Math.abs(diff) < 1e-4) return target;
+  const rate = target === 0 ? fall : rise;  // returning to neutral decays faster
+  const step = Math.min(rate * dt, Math.abs(diff));
+  return diff > 0 ? cur + step : cur - step;
+}
+
+function _keyboardTick() {
+  const s = useTeleop.getState();
+  if (s.intent.input_mode !== "keyboard" || !s.intent.engage) {
+    _stopRamp();
+    return;
+  }
+  const k = s.keys;
+  const tTarget = (k["w"] ? 1 : 0) - (k["s"] ? 1 : 0);
+  const sTarget = (k["a"] ? -1 : 0) + (k["d"] ? 1 : 0);
+  const bTarget = k["space"] ? 1 : 0;
+  const dt = RAMP_MS / 1000;
+  const i = s.intent;
+  const throttle = _rampToward(i.throttle, tTarget, THROTTLE_RISE, THROTTLE_FALL, dt);
+  const steer = _rampToward(i.steer, sTarget, STEER_RISE, STEER_FALL, dt);
+  const brake = _rampToward(i.brake, bTarget, BRAKE_RISE, BRAKE_FALL, dt);
+  const changed =
+    Math.abs(throttle - i.throttle) > 1e-4 ||
+    Math.abs(steer - i.steer) > 1e-4 ||
+    Math.abs(brake - i.brake) > 1e-4;
+  const now = Date.now();
+  // Send on change, and send periodic keepalives so the node deadman stays
+  // satisfied while control is engaged.
+  if (changed || now - _lastRampSend > KEEPALIVE_MS) {
+    _lastRampSend = now;
+    s.setIntent({ throttle, steer, brake });
+  }
+}
+
+function _ensureRamp() {
+  const s = useTeleop.getState();
+  if (s.intent.input_mode !== "keyboard" || !s.intent.engage) return;
+  if (_rampTimer === undefined) {
+    _rampTimer = window.setInterval(_keyboardTick, RAMP_MS);
+  }
+}
+
+function _stopRamp() {
+  if (_rampTimer !== undefined) {
+    window.clearInterval(_rampTimer);
+    _rampTimer = undefined;
+  }
+}
+
 export const useTeleop = create<TeleopState>((set, get) => ({
   connected: false,
   intent: { ...defaultIntent },
@@ -86,8 +152,12 @@ export const useTeleop = create<TeleopState>((set, get) => ({
       patch.throttle = 0;
       patch.brake = 0;
       patch.steer = 0;
+    } else {
+      // Leaving keyboard mode: stop the ramp loop.
+      _stopRamp();
     }
     get().setIntent(patch);
+    if (input_mode === "keyboard" && get().intent.engage) _ensureRamp();
   },
 
   setLimit: (patch) => {
@@ -104,12 +174,9 @@ export const useTeleop = create<TeleopState>((set, get) => ({
     // Only effective in keyboard mode.
     if (get().intent.input_mode !== "keyboard") return;
     set((s) => ({ keys: { ...s.keys, [k]: true } }));
-    // Recompute axes from held keys.
-    const keys = { ...get().keys, [k]: true };
-    const throttle = keys["w"] ? 1 : keys["s"] ? -1 : 0;
-    const steer = keys["a"] ? 1 : keys["d"] ? -1 : 0;
-    const brake = keys["space"] ? 1 : 0;
-    get().setIntent({ throttle, steer, brake });
+    // The ramp integrator ticks up while the key is held; ensure it runs.
+    _ensureRamp();
+    _keyboardTick();  // immediate first step so there is no dead first-tick lag
   },
 
   keyUp: (k) => {
@@ -118,15 +185,20 @@ export const useTeleop = create<TeleopState>((set, get) => ({
       delete keys[k];
       return { keys };
     });
-    // Recompute axes from remaining held keys.
+    // If no keys remain, ramp back to neutral and eventually stop the loop.
     const keys = get().keys;
-    const throttle = keys["w"] ? 1 : keys["s"] ? -1 : 0;
-    const steer = keys["a"] ? 1 : keys["d"] ? -1 : 0;
-    const brake = keys["space"] ? 1 : 0;
-    get().setIntent({ throttle, steer, brake });
+    if (!keys["w"] && !keys["s"] && !keys["a"] && !keys["d"] && !keys["space"]) {
+      _stopRamp();
+    }
+    _keyboardTick();
   },
 
-  toggleEngage: () => get().setIntent({ engage: !get().intent.engage }),
+  toggleEngage: () => {
+    const next = !get().intent.engage;
+    get().setIntent({ engage: next });
+    if (next && get().intent.input_mode === "keyboard") _ensureRamp();
+    else _stopRamp();
+  },
 
   setTestMode: (test_mode) => {
     const patch = TEST_PROFILES[test_mode];
@@ -158,6 +230,7 @@ export const useTeleop = create<TeleopState>((set, get) => ({
 
   setEstop: (armed: boolean) => {
     if (armed === get().estopArmed) return;
+    if (armed) _stopRamp();
     set({ estopArmed: armed });
     const next = { ...get().intent, estop: get().intent.estop + 1 };
     set({ intent: next });
@@ -170,6 +243,7 @@ export const useTeleop = create<TeleopState>((set, get) => ({
    * last command.
    */
   releaseAll: () => {
+    _stopRamp();
     set({ keys: {} });
     const i = get().intent;
     if (i.throttle !== 0 || i.brake !== 0 || i.steer !== 0) {
