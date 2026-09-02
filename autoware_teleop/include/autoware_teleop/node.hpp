@@ -19,6 +19,7 @@
 #include <chrono>
 #include <memory>
 #include <mutex>
+#include <string>
 #include <thread>
 
 #include <rclcpp/rclcpp.hpp>
@@ -55,6 +56,15 @@ struct Intent
   uint8_t gear{autoware_vehicle_msgs::msg::GearCommand::NEUTRAL};
   bool estop{false};
   int64_t timestamp_ms{0};
+  uint8_t input_mode{0};      // 0=raw 1=keyboard (node-enforced)
+  bool engage{false};         // control lock
+  uint32_t sequence{0};       // monotonic per source
+  std::string source;         // producer identity
+  // Authority limits (operator-set ceiling; node clamps to param max).
+  double max_speed_forward{0.0};   // 0 = use param default
+  double max_speed_reverse{0.0};
+  double max_steering_angle{0.0};
+  double max_brake_accel{0.0};
 };
 
 /// Vehicle state snapshot from the report topics.
@@ -115,6 +125,14 @@ private:
   std::atomic<bool> enable_ses_{true};
   std::atomic<bool> enable_seb_{true};
   std::atomic<bool> sim_mode_{false};
+  // Ownership: last accepted sequence + source for stale/regressed rejection.
+  uint32_t last_sequence_{0};
+  std::string active_source_;
+  // Resolved authority limits (param cap enforced on set).
+  double limit_fwd_{0.0};
+  double limit_rev_{0.0};
+  double limit_steer_{0.0};
+  double limit_brake_{0.0};
 
   TeleopParams params_;
 
@@ -127,7 +145,9 @@ private:
   void on_gear(const autoware_vehicle_msgs::msg::GearReport::SharedPtr msg);
   void on_intent(const autoware_teleop_msgs::msg::Intent::SharedPtr msg);
   autoware_control_msgs::msg::Control make_control();
+  autoware_control_msgs::msg::Control make_safe_control();
   bool intent_fresh() const;
+  void resolve_limits(const Intent & intent);
 };
 
 }  // namespace autoware_teleop

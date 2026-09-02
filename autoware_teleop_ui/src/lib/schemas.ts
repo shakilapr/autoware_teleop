@@ -51,6 +51,8 @@ export const IntentSchema = z.object({
   toggle_auto: z.number().int().min(0).default(0),
   reset_pose: z.number().int().min(0).default(0),
   estop: z.number().int().min(0).default(0),
+  source: z.string().default("web"),
+  sequence: z.number().int().min(0).default(0),
 });
 export type Intent = z.infer<typeof IntentSchema>;
 
@@ -67,6 +69,8 @@ export const TelemetrySchema = z.object({
     gear: z.enum(GEAR),
     turn_indicator: z.enum(TURN),
     hazard: z.boolean(),
+    freshness: z.string(),
+    age_ms: z.number(),
   }),
   target: z.object({
     target_velocity: z.number(),
@@ -78,6 +82,16 @@ export const TelemetrySchema = z.object({
   watchdog_tripped: z.boolean(),
   info: z.string(),
   timestamp: z.number(),
+  simulated: z.boolean(),
+  requested: z.object({
+    speed: z.number(),
+    steer: z.number(),
+    gear: z.enum(GEAR),
+  }),
+  stream: z.object({
+    sequence: z.number(),
+    heartbeat_ok: z.boolean(),
+  }),
 });
 export type Telemetry = z.infer<typeof TelemetrySchema>;
 
@@ -95,15 +109,19 @@ export const defaultIntent: Intent = {
   operation_mode: "STOP", manual_control_mode: "VELOCITY", engage: false,
   test_mode: "manual", bridge_params: { ...defaultBridgeParams },
   mode_cycle: 0, toggle_auto: 0, reset_pose: 0, estop: 0,
+  source: "web", sequence: 0,
 };
 
 export const defaultTelemetry: Telemetry = {
   mode: { operation_mode: "STOP", manual_control_mode: "VELOCITY", drive_mode: "stop", mode_status: "" },
-  vehicle: { velocity: 0, steer_angle: 0, gear: "NEUTRAL", turn_indicator: "NONE", hazard: false },
+  vehicle: { velocity: 0, steer_angle: 0, gear: "NEUTRAL", turn_indicator: "NONE", hazard: false, freshness: "unseen", age_ms: 0 },
   target: { target_velocity: 0, target_acceleration: 0, target_steer: 0 },
   shift: { shift_state: "", pending_gear: "" },
   test_mode: "manual",
   watchdog_tripped: false, info: "", timestamp: 0,
+  simulated: false,
+  requested: { speed: 0, steer: 0, gear: "NEUTRAL" },
+  stream: { sequence: 0, heartbeat_ok: true },
 };
 
 /** Predefined test profiles mapping to bridge params. */

@@ -13,6 +13,9 @@ interface TeleopState {
   ws: WebSocket | null;
   /** Keys currently held (keyboard mode). */
   keys: Partial<Record<string, boolean>>;
+  /** Stream health: live | delayed | lost (from heartbeat + reconnect). */
+  streamQuality: "live" | "delayed" | "lost" | "connecting";
+  reconnectAttempts: number;
   setIntent: (patch: Partial<Intent>) => void;
   setGear: (gear: Intent["gear"]) => void;
   setTurn: (turn: Intent["turn_indicator"]) => void;
@@ -20,6 +23,7 @@ interface TeleopState {
   setOperationMode: (m: Intent["operation_mode"]) => void;
   setManualMode: (m: Intent["manual_control_mode"]) => void;
   setInputMode: (m: InputMode) => void;
+  setLimit: (patch: Partial<BridgeParams>) => void;
   toggleEngage: () => void;
   setTestMode: (m: TestMode) => void;
   setBridgeParam: (patch: Partial<BridgeParams>) => void;
@@ -37,6 +41,8 @@ export const useTeleop = create<TeleopState>((set, get) => ({
   estopArmed: false,
   ws: null,
   keys: {},
+  streamQuality: "connecting",
+  reconnectAttempts: 0,
 
   _send: (intent) => {
     const ws = get().ws;
@@ -46,7 +52,7 @@ export const useTeleop = create<TeleopState>((set, get) => ({
   },
 
   setIntent: (patch) => {
-    const next = { ...get().intent, ...patch };
+    const next = { ...get().intent, ...patch, sequence: get().intent.sequence + 1 };
     set({ intent: next });
     get()._send(next);
   },
@@ -57,6 +63,16 @@ export const useTeleop = create<TeleopState>((set, get) => ({
   setOperationMode: (operation_mode) => get().setIntent({ operation_mode }),
   setManualMode: (manual_control_mode) => get().setIntent({ manual_control_mode }),
   setInputMode: (input_mode) => get().setIntent({ input_mode }),
+
+  setLimit: (patch) => {
+    const next = {
+      ...get().intent,
+      bridge_params: { ...get().intent.bridge_params, ...patch },
+      sequence: get().intent.sequence + 1,
+    };
+    set({ intent: next });
+    get()._send(next);
+  },
 
   keyDown: (k) => {
     // Only effective in keyboard mode.
@@ -120,10 +136,20 @@ export const useTeleop = create<TeleopState>((set, get) => ({
       return `${proto}://${location.host}/ws`;
     })();
     const ws = new WebSocket(wsUrl);
-    ws.onopen = () => set({ connected: true, ws });
-    ws.onclose = () => set({ connected: false, ws: null });
+    let lastMsg = Date.now();
+    const mark = (q: TeleopState["streamQuality"]) =>
+      set({ streamQuality: q });
+    ws.onopen = () => {
+      set({ connected: true, ws, reconnectAttempts: 0, streamQuality: "live" });
+      lastMsg = Date.now();
+    };
+    ws.onclose = () => {
+      set({ connected: false, ws: null, streamQuality: "lost" });
+    };
     ws.onerror = () => set({ connected: false });
     ws.onmessage = (ev) => {
+      lastMsg = Date.now();
+      mark("live");
       try {
         const parsed = TelemetrySchema.parse(JSON.parse(ev.data));
         set({ telemetry: parsed });
@@ -132,5 +158,19 @@ export const useTeleop = create<TeleopState>((set, get) => ({
       }
     };
     set({ ws });
+    // Independent freshness clock: a connected-but-silent socket degrades.
+    const watch = window.setInterval(() => {
+      const age = Date.now() - lastMsg;
+      if (ws.readyState === WebSocket.OPEN) {
+        if (age > 3000) mark("delayed");
+        else if (age > 1500) mark("delayed");
+        else mark("live");
+      } else if (age > 1500) {
+        mark("lost");
+      } else if (age > 750) {
+        mark("delayed");
+      }
+    }, 250);
+    ws.addEventListener("close", () => window.clearInterval(watch));
   },
 }));

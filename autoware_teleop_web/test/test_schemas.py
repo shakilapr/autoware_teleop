@@ -85,3 +85,68 @@ def test_telemetry_roundtrip():
     assert back.vehicle.velocity == 1.5
     assert back.vehicle.hazard is True
     assert back.watchdog_tripped is True
+
+
+def test_intent_source_sequence_defaults():
+    intent = Intent()
+    assert intent.source == "web"
+    assert intent.sequence == 0
+    assert intent.input_mode == "raw"
+
+
+def test_intent_source_sequence_set():
+    intent = Intent.model_validate_json(
+        '{"source": "keyboard", "sequence": 7, "input_mode": "keyboard"}')
+    assert intent.source == "keyboard"
+    assert intent.sequence == 7
+    assert intent.input_mode == "keyboard"
+
+
+def test_telemetry_freshness_defaults():
+    t = Telemetry()
+    assert t.vehicle.freshness == "unseen"
+    assert t.vehicle.age_ms == 0.0
+    assert t.simulated is False
+    assert t.requested.speed == 0.0
+    assert t.stream.heartbeat_ok is True
+
+
+def test_telemetry_freshness_roundtrip():
+    t = Telemetry()
+    t.vehicle.freshness = "late"
+    t.vehicle.age_ms = 300.0
+    t.simulated = True
+    t.requested.speed = 1.2
+    t.requested.gear = "DRIVE"
+    t.stream.heartbeat_ok = True
+    d = t.model_dump()
+    back = Telemetry.model_validate(d)
+    assert back.vehicle.freshness == "late"
+    assert back.vehicle.age_ms == 300.0
+    assert back.simulated is True
+    assert back.requested.speed == 1.2
+    assert back.requested.gear == "DRIVE"
+    assert back.stream.heartbeat_ok is True
+
+
+def _classify(seen, last_seen, now, period_ms=100.0):
+    """Mirror of TopicFreshness.classify (avoid rclpy import in CI)."""
+    if not seen:
+        return "unseen"
+    age = now - last_seen
+    if age > max(500.0, 5 * period_ms):
+        return "missing"
+    if age > max(150.0, 2 * period_ms):
+        return "late"
+    return "live"
+
+
+def test_topic_freshness_thresholds():
+    # live: age 50 ms < 2× period (200 ms)
+    assert _classify(True, 1000, 1050) == "live"
+    # late: age 250 ms > 2× period (200 ms)
+    assert _classify(True, 1000, 1250) == "late"
+    # missing: age 600 ms > 5× period (500 ms)
+    assert _classify(True, 1000, 1600) == "missing"
+    # unseen never seen
+    assert _classify(False, 0, 100000) == "unseen"

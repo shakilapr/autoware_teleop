@@ -90,6 +90,8 @@ class Intent(BaseModel):
     toggle_auto: int = 0
     reset_pose: int = 0
     estop: int = 0
+    source: str = Field(default="web", description="producer identity")
+    sequence: int = Field(default=0, ge=0, description="monotonic per source")
 
 
 # ---------------------------------------------------------------------------
@@ -108,12 +110,30 @@ class VehicleState(BaseModel):
     gear: GearLiteral = "NEUTRAL"
     turn_indicator: TurnLiteral = "NONE"
     hazard: bool = False
+    # Per-value freshness (live/late/missing/unseen/invalid) + age in ms.
+    freshness: str = "unseen"
+    age_ms: float = 0.0
 
 
 class TargetState(BaseModel):
     target_velocity: float = 0.0       # m/s
     target_acceleration: float = 0.0   # m/s^2
     target_steer: float = 0.0          # rad
+
+
+class RequestedState(BaseModel):
+    """Commanded target for the cmd-vs-fbk split (what the operator asked for)."""
+
+    speed: float = 0.0                 # m/s (shaped)
+    steer: float = 0.0                 # rad
+    gear: GearLiteral = "NEUTRAL"
+
+
+class StreamState(BaseModel):
+    """WS liveness/sequence for stream-health (heartbeat)."""
+
+    sequence: int = 0
+    heartbeat_ok: bool = True
 
 
 class ShiftState(BaseModel):
@@ -132,3 +152,8 @@ class Telemetry(BaseModel):
     watchdog_tripped: bool = False
     info: str = ""
     timestamp: int = 0                  # ms epoch
+    # Sim provenance: synthetic reports carry a flag so the UI can badge them.
+    simulated: bool = False
+    # Commanded target + stream liveness.
+    requested: RequestedState = RequestedState()
+    stream: StreamState = StreamState()

@@ -60,6 +60,25 @@ GEAR_REPORT_NAME = {
 
 
 @dataclass
+class TopicFreshness:
+    """Per-topic last-seen + freshness classification (live/late/missing)."""
+
+    last_seen_ms: float = 0.0
+    period_ms: float = 100.0
+    seen: bool = False
+
+    def classify(self, now_ms: float) -> str:
+        if not self.seen:
+            return "unseen"
+        age = now_ms - self.last_seen_ms
+        if age > max(500.0, 5 * self.period_ms):
+            return "missing"
+        if age > max(150.0, 2 * self.period_ms):
+            return "late"
+        return "live"
+
+
+@dataclass
 class TelemetrySnapshot:
     """Latest vehicle state, written by the ROS thread, read by the WS thread."""
 
@@ -67,22 +86,37 @@ class TelemetrySnapshot:
     steer_angle: float = 0.0
     gear: str = "NEUTRAL"
     lock: threading.Lock = field(default_factory=threading.Lock)
+    # Per-topic freshness, keyed by report topic (velocity/steering/gear).
+    freshness: dict[str, TopicFreshness] = field(default_factory=dict)
 
     def update(self, velocity=None, steer=None, gear=None):
+        now_ms = time.time() * 1000
         with self.lock:
             if velocity is not None:
                 self.velocity = velocity
+                self.freshness["velocity"].seen = True
+                self.freshness["velocity"].last_seen_ms = now_ms
             if steer is not None:
                 self.steer_angle = steer
+                self.freshness["steering"].seen = True
+                self.freshness["steering"].last_seen_ms = now_ms
             if gear is not None:
                 self.gear = gear
+                self.freshness["gear"].seen = True
+                self.freshness["gear"].last_seen_ms = now_ms
 
     def snapshot(self) -> dict:
+        now_ms = time.time() * 1000
         with self.lock:
             return {
                 "velocity": self.velocity,
                 "steer_angle": self.steer_angle,
                 "gear": self.gear,
+                "freshness": {
+                    k: {"freshness": f.classify(now_ms), "age_ms": round(
+                        max(0.0, now_ms - f.last_seen_ms), 1) if f.seen else 0.0}
+                    for k, f in self.freshness.items()
+                },
             }
 
 
@@ -92,7 +126,13 @@ class TeleopRosBridge(Node):
     def __init__(self, node_name: str = "autoware_teleop_web"):
         super().__init__(node_name)
         self.pub_intent = self.create_publisher(IntentMsg, "~/intent", INTENT_QOS)
-        self.telemetry = TelemetrySnapshot()
+        self.telemetry = TelemetrySnapshot(
+            freshness={
+                "velocity": TopicFreshness(period_ms=100.0),
+                "steering": TopicFreshness(period_ms=100.0),
+                "gear": TopicFreshness(period_ms=100.0),
+            }
+        )
         self.create_subscription(
             VelocityReport, "/vehicle/status/velocity_status",
             self._on_velocity, REPORT_QOS)
@@ -109,6 +149,14 @@ class TeleopRosBridge(Node):
         self._gear = GearCommand.NEUTRAL
         self._estop = 0
         self._input_mode = 0
+        self._source = "web"
+        self._sequence = 0
+        self._limits = {
+            "max_speed_forward": 3.0,
+            "max_speed_reverse": 0.5,
+            "max_steering_angle": 0.747,
+            "max_deceleration": 5.0,
+        }
         self._turn = 0
         self._hazard = False
         self._operation_mode = 0
@@ -145,6 +193,17 @@ class TeleopRosBridge(Node):
         self._estop = max(0, int(intent.get("estop", 0)))
         self._input_mode = {"raw": 0, "keyboard": 1}.get(
             intent.get("input_mode", "raw"), 0)
+        self._source = str(intent.get("source", "web"))[:64] or "web"
+        self._sequence = max(0, int(intent.get("sequence", 0)))
+
+        # Authority limits (operator-set ceiling; node clamps to its params).
+        bp = intent.get("bridge_params", {})
+        self._limits = {
+            "max_speed_forward": float(bp.get("max_speed_forward", 3.0)),
+            "max_speed_reverse": float(bp.get("max_speed_reverse", 0.5)),
+            "max_steering_angle": float(bp.get("max_steering_angle", 0.747)),
+            "max_deceleration": float(bp.get("max_deceleration", 5.0)),
+        }
 
         # New fields (light/op-mode/test-mode/bridge params) — cached and
         # forwarded verbatim on the next intent tick.
@@ -184,6 +243,8 @@ class TeleopRosBridge(Node):
         msg.steer = float(self._steer)
         msg.gear = self._gear
         msg.input_mode = self._input_mode
+        msg.source = self._source
+        msg.sequence = self._sequence
         msg.turn_indicator = self._turn
         msg.hazard = self._hazard
         msg.operation_mode = self._operation_mode
@@ -197,10 +258,10 @@ class TeleopRosBridge(Node):
         msg.send_mode_auto = bp["send_mode_auto"]
         msg.sim_mode = bp["sim_mode"]
         msg.publish_brake_diag = bp["publish_brake_diag"]
-        msg.max_speed_forward = float(bp["max_speed_forward"])
-        msg.max_speed_reverse = float(bp["max_speed_reverse"])
-        msg.max_steering_angle = float(bp["max_steering_angle"])
-        msg.max_deceleration = float(bp["max_deceleration"])
+        msg.max_speed_forward = float(self._limits["max_speed_forward"])
+        msg.max_speed_reverse = float(self._limits["max_speed_reverse"])
+        msg.max_steering_angle = float(self._limits["max_steering_angle"])
+        msg.max_deceleration = float(self._limits["max_deceleration"])
         msg.estop = self._estop
         self.pub_intent.publish(msg)
 

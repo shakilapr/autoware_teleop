@@ -5,6 +5,10 @@
 
 builtin_interfaces/Time stamp
 
+# Producer identity + ordering (one active producer; stale/regressed rejected).
+string source          # e.g. "web", "keyboard", "terminal"
+uint32 sequence        # monotonic per source
+
 # Continuous drive axes, each in [-1, 1].
 float32 throttle   # accelerator axis
 float32 brake      # brake axis, [0, 1]
@@ -33,6 +37,8 @@ bool enable_seb
 bool send_mode_auto
 bool sim_mode
 bool publish_brake_diag
+
+# Authority limits (operator-set ceiling, clamped in the node to the param max).
 float32 max_speed_forward
 float32 max_speed_reverse
 float32 max_steering_angle

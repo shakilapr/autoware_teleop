@@ -31,6 +31,15 @@ export function Dashboard() {
   const intent = useTeleop((s) => s.intent);
   const v = telemetry.vehicle;
   const wd = telemetry.watchdog_tripped;
+  const req = telemetry.requested;
+  const freshTone =
+    v.freshness === "live"
+      ? "text-green-400"
+      : v.freshness === "late"
+        ? "text-amber-400"
+        : v.freshness === "missing"
+          ? "text-red-400"
+          : "text-zinc-600";
 
   return (
     <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-4 space-y-3">
@@ -41,6 +50,11 @@ export function Dashboard() {
           <span className={connected ? "text-green-400" : "text-red-400"}>
             {connected ? "connected" : "disconnected"}
           </span>
+          {telemetry.simulated && (
+            <span className="rounded bg-blue-600 px-1.5 py-0.5 text-white" title="Synthetic reports (sim mode)">
+              SIM
+            </span>
+          )}
           {estopArmed && <span className="rounded bg-red-600 px-1.5 py-0.5 text-white">ESTOP</span>}
           {wd && <span className="rounded bg-amber-600 px-1.5 py-0.5 text-white">DEADMAN</span>}
         </div>
@@ -50,6 +64,34 @@ export function Dashboard() {
         <Gauge label="Speed" value={v.velocity} unit="m/s" display={v.velocity.toFixed(1)} />
         <Gauge label="Steering" value={v.steer_angle} unit="rad" display={v.steer_angle.toFixed(2)} />
         <Gauge label="Gear" value={0} unit="" display={v.gear} />
+      </div>
+
+      {/* Command vs feedback split */}
+      <div className="rounded bg-zinc-800 px-3 py-2 text-xs">
+        <div className="mb-1 flex items-center justify-between">
+          <span className="text-zinc-500">Cmd vs feedback</span>
+          <span className={`font-mono ${freshTone}`}>
+            {v.freshness} · {v.age_ms.toFixed(0)} ms
+          </span>
+        </div>
+        <div className="grid grid-cols-2 gap-1 font-mono text-zinc-300">
+          <div>
+            speed <span className="text-zinc-500">cmd</span> {req.speed.toFixed(1)}
+            <span className="text-zinc-500"> / fbk</span> {v.velocity.toFixed(1)} m/s
+          </div>
+          <div>
+            steer <span className="text-zinc-500">cmd</span> {req.steer.toFixed(2)}
+            <span className="text-zinc-500"> / fbk</span> {v.steer_angle.toFixed(2)} rad
+          </div>
+          <div>
+            gear <span className="text-zinc-500">cmd</span> {req.gear}
+            <span className="text-zinc-500"> / fbk</span> {v.gear}
+          </div>
+          <div>
+            limits <span className="text-zinc-500">fwd</span>{" "}
+            {intent.bridge_params.max_speed_forward.toFixed(1)} m/s
+          </div>
+        </div>
       </div>
 
       <div className="grid grid-cols-3 gap-1.5">

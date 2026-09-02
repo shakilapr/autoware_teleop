@@ -189,18 +189,51 @@ void TeleopNode::on_gear(const GearReport::SharedPtr msg)
 
 void TeleopNode::on_intent(const autoware_teleop_msgs::msg::Intent::SharedPtr msg)
 {
-  Intent intent;
-  intent.throttle = msg->throttle;
-  intent.brake = msg->brake;
-  intent.steer = msg->steer;
-  intent.gear = msg->gear;
-  intent.estop = (msg->estop % 2) == 1;   // odd = armed
-  intent.timestamp_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+  const int64_t now_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
     std::chrono::steady_clock::now().time_since_epoch()).count();
 
   {
     std::lock_guard<std::mutex> lock(mutex_);
+
+    // One-active-producer + stale/regressed rejection. A regressed sequence from
+    // the same source is a duplicate/out-of-order replay — not a command.
+    const std::string source = msg->source.empty() ? "web" : msg->source;
+    if (source == active_source_) {
+      if (msg->sequence < last_sequence_) {
+        RCLCPP_WARN_THROTTLE(
+          get_logger(), *get_clock(), 2000,
+          "Stale intent seq %u < %u (source %s) ignored", msg->sequence,
+          last_sequence_, source.c_str());
+        return;
+      }
+    } else {
+      // Switching producers: release the prior stream and adopt the new one.
+      RCLCPP_INFO(
+        get_logger(), "Intent source switched %s -> %s (releasing prior stream)",
+        active_source_.empty() ? "none" : active_source_.c_str(), source.c_str());
+      active_source_ = source;
+      last_sequence_ = 0;
+    }
+    last_sequence_ = msg->sequence;
+
+    Intent intent;
+    intent.throttle = msg->throttle;
+    intent.brake = msg->brake;
+    intent.steer = msg->steer;
+    intent.gear = msg->gear;
+    intent.estop = (msg->estop % 2) == 1;   // odd = armed
+    intent.input_mode = msg->input_mode;     // 0=raw 1=keyboard
+    intent.engage = msg->engage;
+    intent.sequence = msg->sequence;
+    intent.source = source;
+    intent.max_speed_forward = msg->max_speed_forward;
+    intent.max_speed_reverse = msg->max_speed_reverse;
+    intent.max_steering_angle = msg->max_steering_angle;
+    intent.max_brake_accel = msg->max_deceleration;
+    intent.timestamp_ms = now_ms;
+
     intent_ = intent;
+    resolve_limits(intent);
     // Bridge test-mode toggles: the node routes these to the direct gateway by
     // selecting which actuators to command. sim_mode forces zero commanded
     // motion (actuators stay off) while still exercising the loop.
@@ -210,8 +243,26 @@ void TeleopNode::on_intent(const autoware_teleop_msgs::msg::Intent::SharedPtr ms
     enable_seb_ = msg->enable_seb;
     sim_mode_ = msg->sim_mode;
   }
-  last_intent_ms_.store(intent.timestamp_ms, std::memory_order_relaxed);
-  emergency_.store(intent.estop, std::memory_order_relaxed);
+  last_intent_ms_.store(now_ms, std::memory_order_relaxed);
+  emergency_.store(intent_.estop, std::memory_order_relaxed);
+}
+
+void TeleopNode::resolve_limits(const Intent & intent)
+{
+  // Operator-set ceiling, clamped to the firmware/parameter cap. A zero field
+  // means "use the param default". Never exceed params_.
+  limit_fwd_ = intent.max_speed_forward > 0.0
+    ? std::min(intent.max_speed_forward, params_.max_speed_forward)
+    : params_.max_speed_forward;
+  limit_rev_ = intent.max_speed_reverse > 0.0
+    ? std::min(intent.max_speed_reverse, params_.max_speed_reverse)
+    : params_.max_speed_reverse;
+  limit_steer_ = intent.max_steering_angle > 0.0
+    ? std::min(intent.max_steering_angle, params_.max_steering_angle)
+    : params_.max_steering_angle;
+  limit_brake_ = intent.max_brake_accel > 0.0
+    ? std::min(intent.max_brake_accel, params_.max_brake_accel)
+    : params_.max_brake_accel;
 }
 
 // ---- control ----
@@ -234,22 +285,56 @@ Control TeleopNode::make_control()
   const bool mtr_on = enable_mtr_.load(std::memory_order_relaxed);
   const bool ses_on = enable_ses_.load(std::memory_order_relaxed);
 
+  // Control lock (engage): node-enforced, never trusts the browser to have
+  // disabled a control. While locked, output is zero velocity / neutral.
+  const bool locked = !intent_.engage;
+
+  // Input-mode gate (node-side): in keyboard mode only the discrete keyboard
+  // axes {-1,0,1} are valid. Any continuous slider value is zeroed so a stale
+  // slider cannot drive the vehicle while the operator is on the keyboard.
+  double throttle = intent_.throttle;
+  double brake = intent_.brake;
+  double steer = intent_.steer;
+  if (intent_.input_mode == 1) {  // keyboard
+    const auto discrete = [](double v) {
+      return (v == -1.0 || v == 0.0 || v == 1.0) ? v : 0.0;
+    };
+    throttle = discrete(throttle);
+    steer = discrete(steer);
+    brake = discrete(brake);
+  }
+  if (locked) {
+    throttle = 0.0;
+    brake = 0.0;
+    steer = 0.0;
+  }
+
   msg.lateral.steering_tire_angle = static_cast<float>(
-    ses_on && !sim ? intent_.steer * params_.max_steering_angle : 0.0);
+    ses_on && !sim ? steer * limit_steer_ : 0.0);
   double vel = 0.0;
   if (mtr_on && !sim) {
-    vel = intent_.throttle >= 0.0
-      ? intent_.throttle * params_.max_speed_forward
-      : intent_.throttle * params_.max_speed_reverse;
+    vel = throttle >= 0.0 ? throttle * limit_fwd_ : throttle * limit_rev_;
   }
   msg.longitudinal.velocity = static_cast<float>(vel);
-  if (!sim && intent_.brake > 0.0) {
-    msg.longitudinal.acceleration = static_cast<float>(-intent_.brake * params_.max_brake_accel);
+  if (!sim && brake > 0.0) {
+    msg.longitudinal.acceleration = static_cast<float>(-brake * limit_brake_);
     msg.longitudinal.is_defined_acceleration = true;
   } else {
     msg.longitudinal.acceleration = 0.0f;
     msg.longitudinal.is_defined_acceleration = false;
   }
+  return msg;
+}
+
+Control TeleopNode::make_safe_control()
+{
+  // Zero velocity + defined max braking — the fail-closed command the node
+  // publishes on lock, deadman, source switch, or release.
+  Control msg;
+  msg.longitudinal.velocity = 0.0f;
+  msg.longitudinal.acceleration = static_cast<float>(-params_.max_brake_accel);
+  msg.longitudinal.is_defined_acceleration = true;
+  msg.lateral.steering_tire_angle = 0.0f;
   return msg;
 }
 
@@ -260,22 +345,15 @@ void TeleopNode::on_timer()
     emg->emergency = true;
     pub_emergency_->publish(std::move(emg));
 
-    Control zero = make_control();
-    zero.longitudinal.velocity = 0.0f;
-    zero.longitudinal.is_defined_acceleration = true;
-    zero.longitudinal.acceleration = -params_.max_brake_accel;
-    pub_control_->publish(zero);
+    pub_control_->publish(make_safe_control());
     pub_gear_->publish(std::make_unique<GearCommand>());
     return;
   }
 
   if (!intent_fresh()) {
-    // deadman: brake to a stop
-    Control safe = make_control();
-    safe.longitudinal.velocity = 0.0f;
-    safe.longitudinal.is_defined_acceleration = true;
-    safe.longitudinal.acceleration = -params_.max_brake_accel;
-    pub_control_->publish(safe);
+    // deadman: brake to a stop with an explicit safe frame + neutral gear.
+    pub_control_->publish(make_safe_control());
+    pub_gear_->publish(std::make_unique<GearCommand>());
     return;
   }
 
@@ -283,7 +361,8 @@ void TeleopNode::on_timer()
   auto gear = std::make_unique<GearCommand>();
   {
     std::lock_guard<std::mutex> lock(mutex_);
-    gear->command = intent_.gear;
+    gear->command = !intent_.engage ? autoware_vehicle_msgs::msg::GearCommand::NEUTRAL
+                                    : intent_.gear;
   }
   pub_gear_->publish(std::move(gear));
 }

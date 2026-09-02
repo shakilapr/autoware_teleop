@@ -57,7 +57,6 @@ _spin: "asyncio.Task | threading.Thread | None" = None
 def _telemetry_payload() -> dict:
     snap = _bridge.telemetry.snapshot() if _bridge else {}
     t = Telemetry()
-    t.mode.mode = "stop"
     t.mode.operation_mode = "REMOTE"
     t.vehicle.velocity = snap.get("velocity", 0.0)
     t.vehicle.steer_angle = snap.get("steer_angle", 0.0)
@@ -65,6 +64,16 @@ def _telemetry_payload() -> dict:
     t.target.target_velocity = snap.get("velocity", 0.0)
     t.watchdog_tripped = False
     t.timestamp = int(time.time() * 1000)
+    # Per-topic freshness + age (primary = velocity).
+    fresh = snap.get("freshness", {})
+    vf = fresh.get("velocity", {})
+    t.vehicle.freshness = vf.get("freshness", "unseen")
+    t.vehicle.age_ms = vf.get("age_ms", 0.0)
+    # Sim provenance + commanded target (requested).
+    t.simulated = bool(_bridge and _bridge._bp.get("sim_mode", False))
+    t.requested.speed = snap.get("velocity", 0.0)
+    t.requested.gear = snap.get("gear", "NEUTRAL")
+    t.stream.heartbeat_ok = _bridge is not None
     return t.model_dump()
 
 
@@ -94,24 +103,57 @@ async def health():
 async def ws_endpoint(ws: WebSocket):
     await ws.accept()
     logger.info("ws client connected")
+    seq = 0
+
+    async def _heartbeat():
+        nonlocal seq
+        while True:
+            await asyncio.sleep(0.25)
+            seq += 1
+            t = _telemetry_payload()
+            t["stream"]["sequence"] = seq
+            t["stream"]["heartbeat_ok"] = _bridge is not None
+            await ws.send_text(_payload_dumps(t))
+
+    heartbeat_task = asyncio.create_task(_heartbeat())
     try:
         while True:
             raw = await ws.receive_text()
             try:
                 intent = Intent.model_validate_json(raw)
             except Exception as exc:  # pydantic.ValidationError
-                await ws.send_text(f'{{"error": "invalid intent: {exc}"}}')
+                await ws.send_text(_payload_dumps({
+                    "schema_version": 1, "ok": False, "data": None,
+                    "errors": [{"code": "intent.invalid", "message": str(exc)}],
+                }))
                 continue
             if _bridge is not None:
                 _bridge.set_intent(intent.model_dump())
-            # push telemetry back each intent tick
-            await ws.send_text(_telemetry_payload())
+            # Push telemetry back each intent tick.
+            seq += 1
+            t = _telemetry_payload()
+            t["stream"]["sequence"] = seq
+            await ws.send_text(_payload_dumps(t))
     except WebSocketDisconnect:
         logger.info("ws client disconnected")
-        # Leave the estop counter as-is; the node's deadman will brake because
-        # no fresh intent arrives.
+        # Explicit safe release: zero intent + NEUTRAL + engage off. The node
+        # also has its deadman watchdog as a backstop.
         if _bridge is not None:
-            _bridge.set_intent({"throttle": 0, "brake": 0, "steer": 0, "gear": "NEUTRAL"})
+            _bridge.set_intent({
+                "throttle": 0, "brake": 0, "steer": 0, "gear": "NEUTRAL",
+                "engage": False, "source": "web", "sequence": seq + 1,
+            })
+    finally:
+        heartbeat_task.cancel()
+        try:
+            await heartbeat_task
+        except asyncio.CancelledError:
+            pass
+
+
+def _payload_dumps(t: dict) -> str:
+    import json as _json
+    return _json.dumps(t)
 
 
 # Serve built SPA if present, else a fallback HTML page.

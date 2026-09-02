@@ -1,7 +1,6 @@
 import { useTeleop } from "../stores/teleop";
 import { GEAR, INPUT_MODES, MANUAL_MODES, OPERATION_MODES, TEST_MODES } from "../lib/schemas";
 import type { BridgeParams } from "../lib/schemas";
-
 function AxisSlider({ label, value, min, max, step, onChange, accent, disabled }: {
   label: string; value: number; min: number; max: number; step: number;
   onChange: (v: number) => void; accent?: string; disabled?: boolean;
@@ -67,6 +66,8 @@ export function Console() {
   const toggleEstop = useTeleop((s) => s.toggleEstop);
   const estopArmed = useTeleop((s) => s.estopArmed);
   const setInputMode = useTeleop((s) => s.setInputMode);
+  const setLimit = useTeleop((s) => s.setLimit);
+  const streamQuality = useTeleop((s) => s.streamQuality);
   const bp = intent.bridge_params;
   const isKeyboard = intent.input_mode === "keyboard";
   const locked = !intent.engage;
@@ -74,11 +75,33 @@ export function Console() {
   const onBridgeParam = (key: keyof BridgeParams) => (on: boolean) =>
     setBridgeParam({ [key]: on } as Partial<BridgeParams>);
 
+  const qLabel =
+    streamQuality === "live"
+      ? "LIVE"
+      : streamQuality === "delayed"
+        ? "DELAYED"
+        : streamQuality === "lost"
+          ? "LOST"
+          : "CONNECTING";
+
   return (
     <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-4 space-y-4 relative">
       <div className="flex items-center justify-between">
         <h2 className="text-sm font-semibold text-zinc-100">Game Console</h2>
-        <span className="text-xs text-zinc-500">10 Hz</span>
+        <div className="flex items-center gap-2">
+          <span
+            className={`rounded px-1.5 py-0.5 text-[10px] font-bold ${
+              streamQuality === "live"
+                ? "bg-green-600 text-white"
+                : streamQuality === "delayed"
+                  ? "bg-amber-600 text-white"
+                  : "bg-red-600 text-white"
+            }`}
+          >
+            {qLabel}
+          </span>
+          <span className="text-xs text-zinc-500">10 Hz</span>
+        </div>
       </div>
 
       {/* Input mode toggle */}
@@ -106,6 +129,19 @@ export function Console() {
           onChange={(v) => setIntent({ brake: v })} accent="#ef4444" disabled={isKeyboard || locked} />
         <AxisSlider label="Steering" value={intent.steer} min={-1} max={1} step={0.01}
           onChange={(v) => setIntent({ steer: v })} accent="#3b82f6" disabled={isKeyboard || locked} />
+      </div>
+
+      {/* Authority limits — operator-set ceiling, enforced in the node */}
+      <div className="border-t border-zinc-800 pt-3 space-y-2">
+        <span className="text-xs text-zinc-500">Authority Limits (node-clamped)</span>
+        <AxisSlider label="Max fwd speed (m/s)" value={bp.max_speed_forward} min={0} max={3} step={0.05}
+          onChange={(v) => setLimit({ max_speed_forward: v })} accent="#22c55e" />
+        <AxisSlider label="Max rev speed (m/s)" value={bp.max_speed_reverse} min={0} max={0.5} step={0.05}
+          onChange={(v) => setLimit({ max_speed_reverse: v })} accent="#ef4444" />
+        <AxisSlider label="Max steering (rad)" value={bp.max_steering_angle} min={0} max={0.747} step={0.01}
+          onChange={(v) => setLimit({ max_steering_angle: v })} accent="#3b82f6" />
+        <AxisSlider label="Max brake accel (m/s²)" value={bp.max_deceleration} min={0} max={5} step={0.1}
+          onChange={(v) => setLimit({ max_deceleration: v })} accent="#f59e0b" />
       </div>
 
       {/* Gear */}
