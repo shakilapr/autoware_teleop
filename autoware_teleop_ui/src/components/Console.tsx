@@ -1,21 +1,30 @@
 import { useTeleop } from "../stores/teleop";
 import { INPUT_MODES } from "../lib/schemas";
 
-function AxisSlider({ label, value, min, max, step, onChange, accent, disabled }: {
+function AxisSlider({ label, value, min, max, step, onChange, accent, disabled, hint }: {
   label: string; value: number; min: number; max: number; step: number;
-  onChange: (v: number) => void; accent?: string; disabled?: boolean;
+  onChange: (v: number) => void; accent?: string; disabled?: boolean; hint?: string;
 }) {
-  const pct = ((value - min) / (max - min)) * 100;
+  const pct = max > min ? ((value - min) / (max - min)) * 100 : 0;
   return (
-    <label className="flex items-center gap-2 text-[11px] text-zinc-400">
-      <span className="w-24 shrink-0 truncate" title={label}>{label}</span>
-      <input type="range" min={min} max={max} step={step} value={value}
-        disabled={disabled}
-        onChange={(e) => onChange(Number(e.target.value))}
-        className="h-1.5 min-w-0 flex-1 appearance-none rounded-full disabled:opacity-40 disabled:cursor-not-allowed"
-        style={{ background: `linear-gradient(to right, ${accent ?? "#3b82f6"} ${pct}%, #27272a ${pct}%)` }} />
-      <span className="w-12 shrink-0 text-right font-mono">{value.toFixed(2)}</span>
-    </label>
+    <div className="text-[11px] text-zinc-400">
+      <div className="flex items-center gap-2">
+        <span className="w-24 shrink-0 truncate" title={`${label}${hint ? ` (${hint})` : ""}`}>{label}</span>
+        <input type="range" min={min} max={max} step={step} value={value}
+          disabled={disabled}
+          onChange={(e) => onChange(Number(e.target.value))}
+          className="h-1.5 min-w-0 flex-1 appearance-none rounded-full disabled:opacity-40 disabled:cursor-not-allowed"
+          style={{ background: `linear-gradient(to right, ${accent ?? "#3b82f6"} ${pct}%, #27272a ${pct}%)` }} />
+        <input type="number" min={min} max={max} step={step} value={Number.isFinite(value) ? value : ""}
+          disabled={disabled}
+          onChange={(e) => {
+            const n = Number(e.target.value);
+            if (e.target.value !== "" && Number.isFinite(n)) onChange(Math.min(max, Math.max(min, n)));
+          }}
+          className="w-14 shrink-0 rounded bg-zinc-800 px-1 py-0.5 text-right font-mono text-[11px] text-zinc-100 disabled:opacity-40"
+          title={`${min} … ${max}`} />
+      </div>
+    </div>
   );
 }
 
@@ -41,27 +50,34 @@ function Segmented<T extends string>({ options, value, onChange, label }: {
 
 function Keycaps({ keys }: { keys: Partial<Record<string, boolean>> }) {
   const defs = [
-    ["W", keys["w"], "throttle"],
-    ["S", keys["s"], "reverse"],
-    ["A", keys["a"], "left"],
-    ["D", keys["d"], "right"],
+    ["W", keys["w"], "throttle up"],
+    ["S", keys["s"], "throttle down / reverse"],
+    ["A", keys["a"], "steer left"],
+    ["D", keys["d"], "steer right"],
     ["SPACE", keys["space"], "brake"],
   ] as const;
   return (
-    <div className="flex flex-wrap gap-1 border-t border-zinc-800 pt-2">
-      {defs.map(([label, active, hint]) => (
-        <kbd
-          key={label}
-          title={hint}
-          className={`rounded px-1.5 py-0.5 text-[10px] font-mono font-semibold transition ${
-            active
-              ? "bg-blue-600 text-white ring-1 ring-blue-400"
-              : "bg-zinc-800 text-zinc-500"
-          }`}
-        >
-          {label}
-        </kbd>
-      ))}
+    <div className="border-t border-zinc-800 pt-2">
+      <div className="flex flex-wrap gap-1">
+        {defs.map(([label, active, hint]) => (
+          <kbd
+            key={label}
+            title={hint}
+            className={`rounded px-1.5 py-0.5 text-[10px] font-mono font-semibold transition ${
+              active
+                ? "bg-blue-600 text-white ring-1 ring-blue-400"
+                : "bg-zinc-800 text-zinc-500"
+            }`}
+          >
+            {label}
+          </kbd>
+        ))}
+      </div>
+      <p className="mt-1 text-[10px] leading-tight text-zinc-600">
+        Hold to move — <span className="text-zinc-400">W/S</span> throttle ·{" "}
+        <span className="text-zinc-400">A/D</span> steer · <span className="text-zinc-400">Space</span>{" "}
+        brake
+      </p>
     </div>
   );
 }
@@ -133,13 +149,13 @@ export function Console() {
             <span className="mb-1 block text-[11px] text-zinc-500">Authority limits (node-clamped)</span>
             <div className="grid grid-cols-2 gap-x-2 gap-y-1.5">
               <AxisSlider label="Fwd m/s" value={bp.max_speed_forward} min={0} max={3} step={0.05}
-                onChange={(v) => setLimit({ max_speed_forward: v })} accent="#22c55e" />
+                onChange={(v) => setLimit({ max_speed_forward: v })} accent="#22c55e" hint="0–3 m/s" />
               <AxisSlider label="Rev m/s" value={bp.max_speed_reverse} min={0} max={0.5} step={0.05}
-                onChange={(v) => setLimit({ max_speed_reverse: v })} accent="#ef4444" />
+                onChange={(v) => setLimit({ max_speed_reverse: v })} accent="#ef4444" hint="0–0.5 m/s" />
               <AxisSlider label="Steer rad" value={bp.max_steering_angle} min={0} max={0.747} step={0.01}
-                onChange={(v) => setLimit({ max_steering_angle: v })} accent="#3b82f6" />
+                onChange={(v) => setLimit({ max_steering_angle: v })} accent="#3b82f6" hint="0–0.747 rad" />
               <AxisSlider label="Brk m/s²" value={bp.max_deceleration} min={0} max={5} step={0.1}
-                onChange={(v) => setLimit({ max_deceleration: v })} accent="#f59e0b" />
+                onChange={(v) => setLimit({ max_deceleration: v })} accent="#f59e0b" hint="0–5 m/s²" />
             </div>
           </div>
         </div>

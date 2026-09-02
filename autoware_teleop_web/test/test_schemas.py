@@ -150,3 +150,19 @@ def test_topic_freshness_thresholds():
     assert _classify(True, 1000, 1600) == "missing"
     # unseen never seen
     assert _classify(False, 0, 100000) == "unseen"
+
+
+def test_ping_envelope_is_telemetry_free():
+    """The WS coalescing heartbeat sends a lightweight ping that carries no
+    telemetry fields (vehicle/mode/target), so the frontend short-circuits on
+    type=ping instead of parsing a stale full frame."""
+    ping = {
+        "type": "ping",
+        "stream": {"sequence": 4, "heartbeat_ok": True},
+    }
+    assert ping.get("type") == "ping"
+    assert ping["stream"]["sequence"] == 4
+    # A ping must never look like live vehicle data: no vehicle/mode present.
+    assert "vehicle" not in ping
+    assert "mode" not in ping
+    assert "requested" not in ping

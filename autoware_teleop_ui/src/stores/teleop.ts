@@ -29,12 +29,26 @@ interface TeleopState {
   setBridgeParam: (patch: Partial<BridgeParams>) => void;
   keyDown: (k: string) => void;
   keyUp: (k: string) => void;
-  toggleEstop: () => void;
+  /** Arm (true) or clear (false) emergency stop. */
+  setEstop: (armed: boolean) => void;
   /** Release all held keys + zero axes (blur / tab-hide / disconnect). */
   releaseAll: () => void;
-  connect: (url?: string) => void;
+  connect: (url?: string) => () => void;
   _send: (intent: Intent) => void;
 }
+
+/** True when the stream is not currently live (delayed/lost/connecting). */
+export function streamIsStale(q: TeleopState["streamQuality"]): boolean {
+  return q !== "live";
+}
+
+// Module-level socket lifecycle so StrictMode double-mount never opens two
+// sockets: connect() is a singleton for one URL.
+let _activeUrl: string | null = null;
+let _ws: WebSocket | null = null;
+let _retry = 0;
+let _reconnectTimer: number | undefined;
+let _watch: number | undefined;
 
 export const useTeleop = create<TeleopState>((set, get) => ({
   connected: false,
@@ -132,6 +146,14 @@ export const useTeleop = create<TeleopState>((set, get) => ({
     get()._send(next);
   },
 
+  setEstop: (armed: boolean) => {
+    if (armed === get().estopArmed) return;
+    set({ estopArmed: armed });
+    const next = { ...get().intent, estop: get().intent.estop + 1 };
+    set({ intent: next });
+    get()._send(next);
+  },
+
   /**
    * Safety: release every held key and zero the axes. Called on window blur,
    * tab-hidden, and disconnect so the vehicle stops instead of holding the
@@ -146,34 +168,41 @@ export const useTeleop = create<TeleopState>((set, get) => ({
   },
 
   connect: (url) => {
-    let ws: WebSocket;
-    let closed = false;
-    let lastMsg = Date.now();
-    let retry = 0;
-    let timer: number | undefined;
-    const mark = (q: TeleopState["streamQuality"]) =>
-      set({ streamQuality: q });
-
     const wsUrl = url ?? (() => {
       const proto = location.protocol === "https:" ? "wss" : "ws";
       return `${proto}://${location.host}/ws`;
     })();
 
+    // Singleton: if this URL is already the active connection, do nothing so
+    // React StrictMode double-effect cannot open two sockets.
+    if (_activeUrl === wsUrl && (_ws || _reconnectTimer !== undefined)) {
+      return () => {};
+    }
+    _activeUrl = wsUrl;
+
+    const mark = (q: TeleopState["streamQuality"]) =>
+      set({ streamQuality: q });
+    let lastMsg = Date.now();
+
     const open = () => {
-      if (closed) return;
+      if (_activeUrl !== wsUrl) return;
+      let ws: WebSocket;
       try {
         ws = new WebSocket(wsUrl);
       } catch {
         scheduleReconnect();
         return;
       }
+      _ws = ws;
       set({ ws });
       ws.onopen = () => {
-        retry = 0;
+        _retry = 0;
         lastMsg = Date.now();
         set({ connected: true, reconnectAttempts: 0, streamQuality: "live" });
       };
       ws.onclose = () => {
+        if (_ws !== ws) return; // a newer socket owns the lifecycle
+        _ws = null;
         set({ connected: false, ws: null, streamQuality: "lost" });
         get().releaseAll();
         scheduleReconnect();
@@ -183,7 +212,21 @@ export const useTeleop = create<TeleopState>((set, get) => ({
         lastMsg = Date.now();
         mark("live");
         try {
-          const parsed = TelemetrySchema.parse(JSON.parse(ev.data));
+          const data = JSON.parse(ev.data);
+          // Compact heartbeat/ping frames carry no telemetry — just liveness.
+          if (data && data.type === "ping") {
+            const seq = data.stream?.sequence;
+            if (typeof seq === "number") {
+              set((s) => ({
+                telemetry: {
+                  ...s.telemetry,
+                  stream: { sequence: seq, heartbeat_ok: true },
+                },
+              }));
+            }
+            return;
+          }
+          const parsed = TelemetrySchema.parse(data);
           set({ telemetry: parsed });
         } catch {
           /* ignore malformed telemetry */
@@ -192,22 +235,23 @@ export const useTeleop = create<TeleopState>((set, get) => ({
     };
 
     const scheduleReconnect = () => {
-      if (closed || timer) return;
-      retry += 1;
-      set({ reconnectAttempts: retry });
+      if (_activeUrl !== wsUrl || _reconnectTimer !== undefined) return;
+      _retry += 1;
+      set({ reconnectAttempts: _retry });
       // Exponential backoff with a 8s cap.
-      const delay = Math.min(8000, 500 * 2 ** retry);
-      timer = window.setTimeout(() => {
-        timer = undefined;
+      const delay = Math.min(8000, 500 * 2 ** _retry);
+      _reconnectTimer = window.setTimeout(() => {
+        _reconnectTimer = undefined;
         open();
       }, delay);
     };
 
     open();
     // Independent freshness clock: a connected-but-silent socket degrades.
-    const watch = window.setInterval(() => {
+    _watch = window.setInterval(() => {
       const age = Date.now() - lastMsg;
-      if (ws.readyState === WebSocket.OPEN) {
+      const ws = _ws;
+      if (ws && ws.readyState === WebSocket.OPEN) {
         mark(age > 1500 ? "delayed" : "live");
       } else if (age > 1500) {
         mark("lost");
@@ -216,11 +260,20 @@ export const useTeleop = create<TeleopState>((set, get) => ({
       }
     }, 250);
 
+    // Cleanup: only tear down if we are still the active connection.
     return () => {
-      closed = true;
-      if (timer) window.clearTimeout(timer);
-      window.clearInterval(watch);
-      ws.close();
+      if (_activeUrl !== wsUrl) return;
+      _activeUrl = null;
+      if (_reconnectTimer !== undefined) {
+        window.clearTimeout(_reconnectTimer);
+        _reconnectTimer = undefined;
+      }
+      if (_watch !== undefined) {
+        window.clearInterval(_watch);
+        _watch = undefined;
+      }
+      _ws?.close();
+      _ws = null;
     };
   },
 }));

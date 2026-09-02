@@ -1,22 +1,43 @@
-import { useTeleop } from "../stores/teleop";
+import { useTeleop, streamIsStale } from "../stores/teleop";
 
-/**
- * Compact status strip — TX state, ESTOP, and Stop-all.
- * Mirrors the Control Toolkit's vehicle-card + stop-all-motion panel,
- * kept inside the single viewport.
- */
+const fmt = (v: number, d: number) => {
+  if (!Number.isFinite(v)) return "—";
+  return v.toFixed(d);
+};
+
 export function StatusStrip() {
   const intent = useTeleop((s) => s.intent);
   const telemetry = useTeleop((s) => s.telemetry);
   const estopArmed = useTeleop((s) => s.estopArmed);
-  const toggleEstop = useTeleop((s) => s.toggleEstop);
+  const setEstop = useTeleop((s) => s.setEstop);
   const setIntent = useTeleop((s) => s.setIntent);
   const connected = useTeleop((s) => s.connected);
   const reconnectAttempts = useTeleop((s) => s.reconnectAttempts);
+  const streamQuality = useTeleop((s) => s.streamQuality);
   const v = telemetry.vehicle;
   const req = telemetry.requested;
 
   const locked = !intent.engage;
+  const stale = streamIsStale(streamQuality) || v.freshness === "unseen" || v.freshness === "missing";
+  const live = !stale && connected && v.freshness === "live";
+
+  // READY gate: only green when fully live and control is engaged.
+  const ready =
+    connected && !locked && live && !estopArmed && streamQuality === "live";
+  const readyReason = !connected
+    ? "Not connected"
+    : estopArmed
+      ? "ESTOP armed"
+      : locked
+        ? "Control locked — press ENGAGE"
+        : !live
+          ? v.freshness === "unseen"
+            ? "No telemetry yet"
+            : v.freshness === "missing"
+              ? "Telemetry missing"
+              : "Stream degraded"
+          : "OK";
+
   const txState = estopArmed
     ? { label: "ESTOP", cls: "bg-red-600" }
     : locked
@@ -33,8 +54,19 @@ export function StatusStrip() {
     });
   };
 
+  const speed = live ? fmt(v.velocity, 1) : fmt(v.velocity, 1);
+  const steer = live ? fmt(v.steer_angle, 2) : fmt(v.steer_angle, 2);
+  const ageTxt = v.freshness === "unseen" ? "—" : `${v.age_ms.toFixed(0)} ms`;
+
   return (
     <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-zinc-800 bg-zinc-900 px-4 py-2 text-xs">
+      <span
+        className={`rounded px-2 py-0.5 font-bold text-white ${ready ? "bg-green-600" : "bg-zinc-700"}`}
+        title={ready ? "Ready to drive" : readyReason}
+      >
+        {ready ? "READY" : "NOT READY"}
+      </span>
+
       <span className={`rounded px-2 py-0.5 font-bold text-white ${txState.cls}`}>
         {txState.label}
       </span>
@@ -46,19 +78,19 @@ export function StatusStrip() {
         </span>
       )}
 
-      <div className="flex items-center gap-4 font-mono text-zinc-300">
+      <div className={`flex items-center gap-4 font-mono text-zinc-300 ${stale ? "opacity-60" : ""}`}>
         <span>
-          speed <span className="text-zinc-500">cmd {req.speed.toFixed(1)} · fbk {v.velocity.toFixed(1)}</span>
+          speed <span className="text-zinc-500">cmd {fmt(req.speed, 1)} · fbk {speed}</span>
         </span>
         <span>
-          steer <span className="text-zinc-500">cmd {req.steer.toFixed(2)} · fbk {v.steer_angle.toFixed(2)}</span>
+          steer <span className="text-zinc-500">cmd {fmt(req.steer, 2)} · fbk {steer}</span>
         </span>
         <span>
           gear <span className="text-zinc-500">{req.gear} / {v.gear}</span>
         </span>
       </div>
 
-      <div className="flex items-center gap-1.5 text-zinc-400">
+      <div className={`flex items-center gap-1.5 text-zinc-400 ${stale ? "opacity-60" : ""}`}>
         <span className="text-zinc-500">fresh</span>
         <span
           className={
@@ -73,7 +105,7 @@ export function StatusStrip() {
         >
           {v.freshness}
         </span>
-        <span className="text-zinc-600">({v.age_ms.toFixed(0)} ms)</span>
+        <span className="text-zinc-600">({ageTxt})</span>
       </div>
 
       <div className="ml-auto flex items-center gap-2">
@@ -84,15 +116,23 @@ export function StatusStrip() {
         >
           Stop / release
         </button>
-        <button
-          onClick={toggleEstop}
-          title="Toggle emergency stop"
-          className={`rounded px-3 py-1 font-bold transition ${
-            estopArmed ? "bg-red-600 text-white" : "bg-zinc-800 text-red-400 hover:bg-zinc-700"
-          }`}
-        >
-          ESTOP
-        </button>
+        {estopArmed ? (
+          <button
+            onClick={() => setEstop(false)}
+            title="Clear emergency stop"
+            className="rounded border border-zinc-600 px-3 py-1 font-bold text-zinc-300 hover:bg-zinc-700 transition"
+          >
+            CLEAR ESTOP
+          </button>
+        ) : (
+          <button
+            onClick={() => setEstop(true)}
+            title="Arm emergency stop"
+            className="rounded bg-red-600 px-3 py-1 font-bold text-white hover:bg-red-500 transition"
+          >
+            ESTOP
+          </button>
+        )}
       </div>
     </div>
   );

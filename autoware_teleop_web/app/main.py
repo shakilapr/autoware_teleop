@@ -104,16 +104,26 @@ async def ws_endpoint(ws: WebSocket):
     await ws.accept()
     logger.info("ws client connected")
     seq = 0
+    _last_telemetry: dict | None = None
 
     async def _heartbeat():
-        nonlocal seq
+        nonlocal seq, _last_telemetry
         while True:
             await asyncio.sleep(0.25)
             seq += 1
             t = _telemetry_payload()
             t["stream"]["sequence"] = seq
             t["stream"]["heartbeat_ok"] = _bridge is not None
-            await ws.send_text(_payload_dumps(t))
+            # Coalesce: only push a full frame when something changed; otherwise
+            # a lightweight ping keeps the connection/health honest.
+            if t != _last_telemetry:
+                _last_telemetry = t
+                await ws.send_text(_payload_dumps(t))
+            else:
+                await ws.send_text(_payload_dumps({
+                    "type": "ping",
+                    "stream": {"sequence": seq, "heartbeat_ok": _bridge is not None},
+                }))
 
     heartbeat_task = asyncio.create_task(_heartbeat())
     try:
@@ -131,6 +141,7 @@ async def ws_endpoint(ws: WebSocket):
                 _bridge.set_intent(intent.model_dump())
             # Push telemetry back each intent tick.
             seq += 1
+            _last_telemetry = None  # force a fresh full frame next heartbeat
             t = _telemetry_payload()
             t["stream"]["sequence"] = seq
             await ws.send_text(_payload_dumps(t))
