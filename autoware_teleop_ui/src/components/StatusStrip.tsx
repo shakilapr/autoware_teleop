@@ -15,18 +15,20 @@ export function StatusStrip() {
   const locked = !intent.engage || !isRemote;
   const live = connected && streamQuality === "live" && v.freshness === "live";
 
-  const autowareConflict = isRemote && (
-    Boolean(telemetry.mode.autoware_conflict) ||
-    telemetry.mode.drive_mode.toLowerCase() === "autonomous" ||
-    telemetry.info.toLowerCase().includes("conflict")
-  );
+  // Authoritative flags come from the backend (computed from /vehicle/status/
+  // control_mode feedback), not from string sniffing here.
+  const m = telemetry.mode;
+  const conflict = m.autoware_conflict;
+  const warning = m.autoware_warning;
+  const autoConfirmed = m.autoware_auto_confirmed;
 
-  // READY gate: only green when in REMOTE mode, fully live, and control is engaged without estop.
+  // READY gate: only green when in REMOTE mode, fully live, control engaged, no estop.
   const ready = connected && isRemote && !locked && live && !estopArmed;
   
   const reasons: string[] = [];
   if (!connected) reasons.push("Not connected to vehicle");
   if (estopArmed) reasons.push("Emergency stop armed");
+  if (conflict) reasons.push("Autoware is driving (AUTO) while REMOTE is engaged — conflict");
   if (!isRemote) reasons.push(`Mode is ${intent.operation_mode} — drive controls inactive`);
   else if (locked) reasons.push("Control locked — press ENGAGE to drive");
   if (connected && streamQuality !== "live") reasons.push("Stream quality degraded");
@@ -35,12 +37,15 @@ export function StatusStrip() {
   const readyReason = reasons.length ? reasons.join(" · ") : "System OK and Ready";
 
   // Gated TX state: reflect the specific operation mode
+  const fullAwait = intent.operation_mode === "FULL" && m.actual_vehicle_mode !== "AUTONOMOUS" && m.actual_vehicle_mode !== "UNKNOWN";
   const txState = estopArmed
     ? { label: "ESTOP", cls: "bg-red-600 text-white animate-pulse" }
     : intent.operation_mode === "STOP"
       ? { label: "STOPPED", cls: "bg-zinc-800 text-zinc-400 border border-zinc-700" }
       : intent.operation_mode === "FULL"
-        ? { label: "AUTONOMOUS (FULL)", cls: "bg-indigo-600 text-white shadow-sm" }
+        ? fullAwait
+          ? { label: `AWAITING AUTO (${m.actual_vehicle_mode})`, cls: "bg-amber-600/40 text-amber-200 border border-amber-500/60" }
+          : { label: "AUTONOMOUS (FULL)", cls: "bg-indigo-600 text-white shadow-sm" }
         : intent.operation_mode === "SIM"
           ? { label: "SIMULATION (VIEW)", cls: "bg-cyan-600 text-white shadow-sm" }
           : locked
@@ -84,13 +89,43 @@ export function StatusStrip() {
           {txState.label}
         </span>
 
-        {autowareConflict && (
+        <span
+          className="rounded-lg px-2.5 py-1.5 text-xs font-medium border border-zinc-700 bg-zinc-800/60 text-zinc-300"
+          title={`Requested mode: ${intent.operation_mode} · Vehicle actual: ${m.actual_vehicle_mode} (from /vehicle/status/control_mode)`}
+        >
+          {intent.operation_mode}
+          <span className="mx-1 text-zinc-600">→</span>
+          {m.actual_vehicle_mode}
+        </span>
+
+        {conflict && (
           <span
-            className="rounded-lg bg-amber-500/20 border border-amber-500/60 px-3 py-1.5 text-xs font-bold text-amber-300 animate-pulse flex items-center gap-1.5"
-            title="Topic conflict warning: Autoware Universe control stack is running concurrently with remote teleop!"
+            className="rounded-lg bg-red-500/20 border border-red-500/60 px-3 py-1.5 text-xs font-bold text-red-300 animate-pulse flex items-center gap-1.5"
+            title="CONFLICT: vehicle reports AUTONOMOUS while REMOTE is engaged — two drive authorities are fighting over /control/command/*"
+            role="alert"
+          >
+            <span className="h-2 w-2 rounded-full bg-red-400 shrink-0" />
+            ⚠️ TOPIC CONFLICT
+          </span>
+        )}
+
+        {warning && (
+          <span
+            className="rounded-lg bg-amber-500/20 border border-amber-500/60 px-3 py-1.5 text-xs font-bold text-amber-300 flex items-center gap-1.5"
+            title="Autoware Universe is driving (AUTO). ENGAGING REMOTE would conflict with it."
           >
             <span className="h-2 w-2 rounded-full bg-amber-400 shrink-0" />
-            ⚠️ TOPIC CONFLICT
+            AUTOWARE DRIVING
+          </span>
+        )}
+
+        {autoConfirmed && (
+          <span
+            className="rounded-lg bg-emerald-500/20 border border-emerald-500/60 px-3 py-1.5 text-xs font-bold text-emerald-300 flex items-center gap-1.5"
+            title="Vehicle confirmed AUTONOMOUS — Autoware Universe is in control. Viewing only."
+          >
+            <span className="h-2 w-2 rounded-full bg-emerald-400 shrink-0" />
+            AUTOWARE AUTO
           </span>
         )}
 

@@ -280,19 +280,39 @@ export function Dashboard() {
         {/* Operational Modes Matrix */}
         <div className="grid grid-cols-2 gap-2 text-xs text-zinc-300">
           <div className="rounded-lg bg-zinc-950/60 p-2.5 border border-zinc-800">
-            <div className="text-[11px] font-medium text-zinc-400">Operation Mode</div>
+            <div className="text-[11px] font-medium text-zinc-400">Operation Mode (requested)</div>
             <div className="font-mono text-sm font-bold text-white mt-0.5">{telemetry.mode.operation_mode}</div>
+          </div>
+          <div className="rounded-lg bg-zinc-950/60 p-2.5 border border-zinc-800">
+            <div className="text-[11px] font-medium text-zinc-400">Vehicle Actual</div>
+            <div className="font-mono text-sm font-bold text-white mt-0.5">{telemetry.mode.actual_vehicle_mode}</div>
           </div>
           <div className="rounded-lg bg-zinc-950/60 p-2.5 border border-zinc-800">
             <div className="text-[11px] font-medium text-zinc-400">Manual Mode</div>
             <div className="font-mono text-sm font-bold text-white mt-0.5">{telemetry.mode.manual_control_mode}</div>
           </div>
+          <div className="rounded-lg bg-zinc-950/60 p-2.5 border border-zinc-800">
+            <div className="text-[11px] font-medium text-zinc-400">Drive Mode</div>
+            <div className="font-mono text-sm font-bold text-white mt-0.5">{telemetry.mode.drive_mode}</div>
+          </div>
         </div>
 
         {telemetry.mode.autoware_conflict && (
+          <div className="rounded-lg border border-red-600/80 bg-red-950/40 p-2.5 text-xs text-red-300 flex items-center gap-2" role="alert">
+            <span className="h-2 w-2 rounded-full bg-red-400 animate-ping shrink-0" />
+            <span className="font-semibold">CONFLICT: Autoware is driving (AUTO) while REMOTE is engaged</span>
+          </div>
+        )}
+        {!telemetry.mode.autoware_conflict && telemetry.mode.autoware_warning && (
           <div className="rounded-lg border border-amber-600/80 bg-amber-950/40 p-2.5 text-xs text-amber-300 flex items-center gap-2">
-            <span className="h-2 w-2 rounded-full bg-amber-400 animate-ping shrink-0" />
-            <span className="font-semibold">Autoware Universe Topic Conflict Detected</span>
+            <span className="h-2 w-2 rounded-full bg-amber-400 shrink-0" />
+            <span className="font-semibold">Autoware is driving — engaging REMOTE would conflict</span>
+          </div>
+        )}
+        {!telemetry.mode.autoware_conflict && telemetry.mode.autoware_auto_confirmed && (
+          <div className="rounded-lg border border-emerald-700/80 bg-emerald-950/40 p-2.5 text-xs text-emerald-300 flex items-center gap-2">
+            <span className="h-2 w-2 rounded-full bg-emerald-400 shrink-0" />
+            <span className="font-semibold">Autoware AUTO confirmed — viewing only</span>
           </div>
         )}
 
