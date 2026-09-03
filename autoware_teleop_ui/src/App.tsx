@@ -5,6 +5,7 @@ import { Systems } from "./components/Systems";
 import { Dashboard } from "./components/Dashboard";
 import { StatusStrip } from "./components/StatusStrip";
 import { OutputTopics } from "./components/OutputTopics";
+import { EventLogs } from "./components/EventLogs";
 import { useTeleop } from "./stores/teleop";
 
 export default function App() {
@@ -94,7 +95,10 @@ export default function App() {
           </div>
         </main>
 
-        <OutputTopics />
+        <div className="mt-4.5 grid grid-cols-1 lg:grid-cols-2 gap-4.5 items-stretch">
+          <OutputTopics />
+          <EventLogs />
+        </div>
       </div>
     </div>
   );

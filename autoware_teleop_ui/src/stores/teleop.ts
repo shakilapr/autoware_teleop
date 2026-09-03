@@ -5,6 +5,14 @@ import {
 } from "../lib/schemas";
 import type { Intent, Telemetry, TestMode, BridgeParams, InputMode } from "../lib/schemas";
 
+export interface LogEntry {
+  id: string;
+  timestamp: string;
+  level: "INFO" | "WARN" | "ERROR" | "CRIT";
+  subsystem: "AUTH" | "SAFETY" | "BRIDGE" | "ROS2" | "GEAR";
+  message: string;
+}
+
 interface TeleopState {
   connected: boolean;
   intent: Intent;
@@ -16,6 +24,9 @@ interface TeleopState {
   /** Stream health: live | delayed | lost (from heartbeat + reconnect). */
   streamQuality: "live" | "delayed" | "lost" | "connecting";
   reconnectAttempts: number;
+  logs: LogEntry[];
+  addLog: (level: LogEntry["level"], subsystem: LogEntry["subsystem"], message: string) => void;
+  clearLogs: () => void;
   setIntent: (patch: Partial<Intent>) => void;
   setGear: (gear: Intent["gear"]) => void;
   setTurn: (turn: Intent["turn_indicator"]) => void;
@@ -121,6 +132,18 @@ function _stopRamp() {
   }
 }
 
+function formatLogTimestamp(): string {
+  const now = new Date();
+  const h = String(now.getHours()).padStart(2, "0");
+  const m = String(now.getMinutes()).padStart(2, "0");
+  const s = String(now.getSeconds()).padStart(2, "0");
+  const ms = String(now.getMilliseconds()).padStart(3, "0");
+  return `${h}:${m}:${s}.${ms}`;
+}
+
+let _logSeq = 1;
+const MAX_LOG_ENTRIES = 120;
+
 export const useTeleop = create<TeleopState>((set, get) => ({
   connected: false,
   intent: { ...defaultIntent },
@@ -130,6 +153,26 @@ export const useTeleop = create<TeleopState>((set, get) => ({
   keys: {},
   streamQuality: "connecting",
   reconnectAttempts: 0,
+  logs: [
+    { id: String(_logSeq++), timestamp: formatLogTimestamp(), level: "INFO", subsystem: "ROS2", message: "Teleop interface attached to ROS 2 Humble control stack" },
+    { id: String(_logSeq++), timestamp: formatLogTimestamp(), level: "INFO", subsystem: "BRIDGE", message: "Gateway client initialized on ws://localhost:8000/ws" },
+    { id: String(_logSeq++), timestamp: formatLogTimestamp(), level: "INFO", subsystem: "AUTH", message: "System initialized in STOP fail-safe mode" },
+  ],
+
+  addLog: (level, subsystem, message) => {
+    const entry: LogEntry = {
+      id: String(_logSeq++),
+      timestamp: formatLogTimestamp(),
+      level,
+      subsystem,
+      message,
+    };
+    set((s) => ({
+      logs: [...s.logs.slice(-(MAX_LOG_ENTRIES - 1)), entry],
+    }));
+  },
+
+  clearLogs: () => set({ logs: [] }),
 
   _send: (intent) => {
     const ws = get().ws;
@@ -144,10 +187,27 @@ export const useTeleop = create<TeleopState>((set, get) => ({
     get()._send(next);
   },
 
-  setGear: (gear) => get().setIntent({ gear }),
+  setGear: (gear) => {
+    const prev = get().intent.gear;
+    if (prev !== gear) {
+      get().addLog("INFO", "GEAR", `Requested gear shift: ${prev} → ${gear}`);
+    }
+    get().setIntent({ gear });
+  },
+
   setTurn: (turn_indicator) => get().setIntent({ turn_indicator }),
-  toggleHazard: () => get().setIntent({ hazard: !get().intent.hazard }),
+
+  toggleHazard: () => {
+    const next = !get().intent.hazard;
+    get().addLog("WARN", "SAFETY", `Hazard warning lamps switched ${next ? "ON" : "OFF"}`);
+    get().setIntent({ hazard: next });
+  },
+
   setOperationMode: (operation_mode) => {
+    const prev = get().intent.operation_mode;
+    if (prev !== operation_mode) {
+      get().addLog("INFO", "AUTH", `Mode transition requested: ${prev} → ${operation_mode}`);
+    }
     const patch: Partial<Intent> = { operation_mode };
     if (operation_mode !== "REMOTE") {
       _stopRamp();
@@ -221,6 +281,13 @@ export const useTeleop = create<TeleopState>((set, get) => ({
   toggleEngage: () => {
     if (get().intent.operation_mode !== "REMOTE") return;
     const next = !get().intent.engage;
+    get().addLog(
+      next ? "INFO" : "WARN",
+      "AUTH",
+      next
+        ? "Drive authority ENGAGED — vehicle responsive to operator input"
+        : "Drive authority DISENGAGED — control inputs locked & zeroed"
+    );
     get().setIntent({ engage: next });
     if (next && get().intent.input_mode === "keyboard") _ensureRamp();
     else _stopRamp();
@@ -248,15 +315,19 @@ export const useTeleop = create<TeleopState>((set, get) => ({
 
   toggleEstop: () => {
     const armed = !get().estopArmed;
-    set({ estopArmed: armed });
-    const next = { ...get().intent, estop: get().intent.estop + 1 };
-    set({ intent: next });
-    get()._send(next);
+    get().setEstop(armed);
   },
 
   setEstop: (armed: boolean) => {
     if (armed === get().estopArmed) return;
     if (armed) _stopRamp();
+    get().addLog(
+      armed ? "CRIT" : "INFO",
+      "SAFETY",
+      armed
+        ? "EMERGENCY STOP (ESTOP) ARMED — Actuation disarmed & full braking applied"
+        : "Emergency Stop released — Operator manual reset required"
+    );
     set({ estopArmed: armed });
     const next = { ...get().intent, estop: get().intent.estop + 1 };
     set({ intent: next });
@@ -272,8 +343,9 @@ export const useTeleop = create<TeleopState>((set, get) => ({
     _stopRamp();
     set({ keys: {} });
     const i = get().intent;
-    if (i.throttle !== 0 || i.brake !== 0 || i.steer !== 0) {
-      get().setIntent({ throttle: 0, brake: 0, steer: 0 });
+    if (i.throttle !== 0 || i.brake !== 0 || i.steer !== 0 || i.engage) {
+      get().addLog("WARN", "SAFETY", "Safety fail-closed trigger: axes zeroed on focus loss or reset");
+      get().setIntent({ throttle: 0, brake: 0, steer: 0, engage: false });
     }
   },
 
@@ -309,12 +381,14 @@ export const useTeleop = create<TeleopState>((set, get) => ({
         _retry = 0;
         lastMsg = Date.now();
         set({ connected: true, reconnectAttempts: 0, streamQuality: "live" });
+        get().addLog("INFO", "BRIDGE", "WebSocket transport connected to Teleop Gateway");
       };
       ws.onclose = () => {
         if (_ws !== ws) return; // a newer socket owns the lifecycle
         _ws = null;
         set({ connected: false, ws: null, streamQuality: "lost" });
         get().releaseAll();
+        get().addLog("ERROR", "BRIDGE", `WebSocket transport disconnected. Reconnecting attempt ${_retry + 1}...`);
         scheduleReconnect();
       };
       ws.onerror = () => ws.close();
@@ -337,6 +411,12 @@ export const useTeleop = create<TeleopState>((set, get) => ({
             return;
           }
           const parsed = TelemetrySchema.parse(data);
+          const prevConflict = get().telemetry.mode.autoware_conflict;
+          if (!prevConflict && parsed.mode.autoware_conflict) {
+            get().addLog("ERROR", "ROS2", "TOPIC CONFLICT: Autoware Universe contention on /control/command/*");
+          } else if (prevConflict && !parsed.mode.autoware_conflict) {
+            get().addLog("INFO", "ROS2", "Topic conflict cleared — exclusive control confirmed");
+          }
           set({ telemetry: parsed });
         } catch {
           /* ignore malformed telemetry */

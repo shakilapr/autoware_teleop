@@ -77,6 +77,11 @@ def _telemetry_payload() -> dict:
     vf = fresh.get("velocity", {})
     t.vehicle.freshness = vf.get("freshness", "unseen")
     t.vehicle.age_ms = vf.get("age_ms", 0.0)
+    # ROS2 graph detection.
+    if _bridge:
+        g = _bridge.graph_status()
+        t.ros2.ok = g["ros2_ok"]
+        t.ros2.autoware_present = g["autoware_present"]
     # Sim provenance + commanded target (requested).
     t.simulated = bool(_bridge and _bridge._bp.get("sim_mode", False))
     t.requested.speed = snap.get("velocity", 0.0)

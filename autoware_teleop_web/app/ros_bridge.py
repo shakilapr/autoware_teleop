@@ -195,6 +195,48 @@ class TeleopRosBridge(Node):
         self._running = False
         self._stream_thread: threading.Thread | None = None
 
+        # ROS2 graph detection (polled periodically).
+        self._graph_lock = threading.Lock()
+        self._ros2_ok = False          # graph reachable (topics query works)
+        self._autoware_present = False # key Autoware control/status topics exist
+        self._graph_thread: threading.Thread | None = None
+        self._graph_stop = False
+
+    # ---- ROS2 graph detection ----
+    def _graph_probe(self):
+        """Periodically probe the ROS2 graph. Catches:
+        - rclpy graph not usable (no daemon / node not spun yet)
+        - Autoware Universe not running (expected topics absent)
+        """
+        self._graph_stop = False
+        while self._running and not self._graph_stop:
+            try:
+                # get_topic_names_and_types() raises if the graph/context is bad.
+                topics = self.get_topic_names_and_types()
+                names = {t for t, _ in topics}
+                control = "/control/command/control_cmd" in names
+                status = "/vehicle/status/velocity_status" in names or \
+                    "/vehicle/status/control_mode" in names
+                with self._graph_lock:
+                    self._ros2_ok = True
+                    # Autoware is 'present' when both sides of the vehicle
+                    # interface exist (something consumes control + publishes
+                    # status). This means the Autoware/vehicle stack is up.
+                    self._autoware_present = bool(control and status)
+            except Exception:
+                with self._graph_lock:
+                    self._ros2_ok = False
+                    self._autoware_present = False
+            time.sleep(2.0)
+
+    def graph_status(self) -> dict:
+        """Return the current ROS2 graph detection snapshot."""
+        with self._graph_lock:
+            return {
+                "ros2_ok": self._ros2_ok,
+                "autoware_present": self._autoware_present,
+            }
+
     # ---- subscribers ----
     def _on_velocity(self, msg: VelocityReport):
         self.telemetry.update(velocity=float(msg.longitudinal_velocity))
@@ -315,9 +357,15 @@ class TeleopRosBridge(Node):
         self._running = True
         self._stream_thread = threading.Thread(target=self._stream_loop, daemon=True)
         self._stream_thread.start()
+        self._graph_thread = threading.Thread(target=self._graph_probe, daemon=True)
+        self._graph_thread.start()
 
     def stop(self):
         self._running = False
+        self._graph_stop = True
+        if self._graph_thread:
+            self._graph_thread.join(timeout=2.0)
+            self._graph_thread = None
         if self._stream_thread:
             self._stream_thread.join(timeout=2.0)
             self._stream_thread = None

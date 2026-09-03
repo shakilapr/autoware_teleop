@@ -96,6 +96,10 @@ export const TelemetrySchema = z.object({
     sequence: z.number(),
     heartbeat_ok: z.boolean(),
   }),
+  ros2: z.object({
+    ok: z.boolean(),
+    autoware_present: z.boolean(),
+  }),
 });
 export type Telemetry = z.infer<typeof TelemetrySchema>;
 
@@ -126,6 +130,7 @@ export const defaultTelemetry: Telemetry = {
   simulated: false,
   requested: { speed: 0, steer: 0, gear: "NEUTRAL" },
   stream: { sequence: 0, heartbeat_ok: true },
+  ros2: { ok: false, autoware_present: false },
 };
 
 /** Predefined test profiles mapping to bridge params. */

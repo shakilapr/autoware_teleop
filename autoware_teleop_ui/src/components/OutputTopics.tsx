@@ -4,6 +4,7 @@ import { Terminal } from "lucide-react";
 /**
  * ROS2 command output — the /control/command/* topics this teleop node
  * publishes (the Autoware Universe interface it mimics).
+ * Clean, borderless list format per operator ergonomic standards.
  */
 export function OutputTopics() {
   const intent = useTeleop((s) => s.intent);
@@ -40,33 +41,33 @@ export function OutputTopics() {
   }> = [
     {
       topic: "/control/command/control_cmd",
-      type: "autoware_control_msgs/msg/Control",
+      type: "Control",
       val: `v ${fmt(cmdSpeed)} m/s · steer ${fmt(cmdSteer, 3)} rad · accel ${fmt(cmdAccel)} m/s²`,
       live: !locked && !estop,
     },
     {
       topic: "/control/command/gear_cmd",
-      type: "autoware_vehicle_msgs/msg/GearCommand",
+      type: "GearCommand",
       val: cmdGear,
       live: !locked && !estop,
     },
     {
       topic: "/control/command/turn_indicators_cmd",
-      type: "autoware_vehicle_msgs/msg/TurnIndicatorsCommand",
+      type: "TurnIndicatorsCommand",
       val: turn,
       live: !estop,
       planned: true, // node does not yet publish this topic
     },
     {
       topic: "/control/command/hazard_lights_cmd",
-      type: "autoware_vehicle_msgs/msg/HazardLightsCommand",
+      type: "HazardLightsCommand",
       val: intent.hazard ? "ON" : "OFF",
       live: !estop,
       planned: true, // node does not yet publish this topic
     },
     {
       topic: "/control/command/emergency_cmd",
-      type: "tier4_vehicle_msgs/msg/VehicleEmergencyStamped",
+      type: "VehicleEmergencyStamped",
       val: estop ? "EMERGENCY (armed)" : "clear",
       live: estop,
       danger: estop,
@@ -74,39 +75,55 @@ export function OutputTopics() {
   ];
 
   return (
-    <div className={`mt-4 rounded-xl border border-zinc-800 bg-zinc-900 p-4 shadow-md transition ${dim ? "opacity-75" : ""}`}>
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-base font-bold text-zinc-100 flex items-center gap-2">
-          <Terminal className="w-4 h-4 text-purple-400 shrink-0" />
-          ROS 2 Command Output
-        </h2>
-        <span className="text-xs font-medium text-zinc-400">Autoware Universe Control Interface</span>
-      </div>
-
-      <div className="space-y-2">
-        {rows.map((r) => (
-          <div
-            key={r.topic}
-            className="flex flex-col md:flex-row md:items-center justify-between gap-1.5 rounded-lg bg-zinc-950/60 px-3 py-2 font-mono text-xs border border-zinc-850"
-          >
-            <div className="flex items-center gap-2.5 overflow-hidden">
-              <span className={`h-2 w-2 shrink-0 rounded-full ${r.danger ? "bg-red-500 animate-ping" : r.live ? "bg-emerald-500 shadow-sm shadow-emerald-500/80" : r.planned ? "bg-zinc-500" : "bg-zinc-600"}`} />
-              <span className="font-semibold text-blue-400">{r.topic}</span>
-              <span className="hidden xl:inline text-zinc-500 text-[11px] font-sans">({r.type})</span>
-              {r.planned && (
-                <span className="rounded bg-zinc-800 px-1.5 py-0.5 text-[10px] font-semibold text-zinc-400"
-                  title="This topic is planned but the teleop node does not publish it yet">
-                  PLANNED
-                </span>
-              )}
-            </div>
-            <div className="font-semibold text-zinc-100 md:text-right text-left pl-4 md:pl-0">
-              {r.val}
-            </div>
+    <div className={`flex flex-col justify-between rounded-xl border border-zinc-800 bg-zinc-900 p-4 shadow-md transition h-full ${dim ? "opacity-75" : ""}`}>
+      <div>
+        <div className="mb-2.5 flex flex-wrap items-center justify-between gap-2 border-b border-zinc-800/80 pb-2.5">
+          <div className="flex items-center gap-2">
+            <Terminal className="w-4 h-4 text-purple-400 shrink-0" />
+            <h2 className="text-base font-bold text-zinc-100">ROS 2 Command Output</h2>
           </div>
-        ))}
+          <div className="flex items-center gap-2">
+            <span className="font-mono text-[10px] font-semibold text-zinc-400 bg-zinc-800 px-2 py-0.5 rounded border border-zinc-700">
+              10 Hz TX
+            </span>
+            <span className="text-xs font-medium text-zinc-500 hidden sm:inline">Autoware Interface</span>
+          </div>
+        </div>
+
+        <div className="divide-y divide-zinc-800/60">
+          {rows.map((r) => (
+            <div
+              key={r.topic}
+              className="flex items-center justify-between py-2 px-1.5 hover:bg-zinc-800/30 transition-colors"
+            >
+              <div className="flex items-center gap-2.5 min-w-0 pr-3">
+                <span
+                  className={`h-2 w-2 shrink-0 rounded-full ${
+                    r.danger
+                      ? "bg-red-500 animate-ping"
+                      : r.live
+                        ? "bg-emerald-500 shadow-sm shadow-emerald-500/80"
+                        : r.planned
+                          ? "bg-zinc-600"
+                          : "bg-zinc-700"
+                  }`}
+                />
+                <span className="font-mono text-xs font-semibold text-blue-400 truncate" title={r.topic}>
+                  {r.topic}
+                </span>
+                {r.planned && (
+                  <span className="rounded bg-zinc-800/80 px-1.5 py-0.2 text-[9px] font-semibold text-zinc-400 border border-zinc-700/60 shrink-0" title="Planned upstream interface">
+                    PLANNED
+                  </span>
+                )}
+              </div>
+              <div className="font-mono text-xs font-semibold text-zinc-200 text-right shrink-0">
+                {r.val}
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );
 }
-

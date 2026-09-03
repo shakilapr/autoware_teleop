@@ -199,6 +199,13 @@ class StreamState(BaseModel):
     heartbeat_ok: bool = True
 
 
+class Ros2State(BaseModel):
+    """ROS2 graph detection (from the web bridge's periodic graph probe)."""
+
+    ok: bool = False                 # rclpy graph reachable (topics query works)
+    autoware_present: bool = False   # Autoware control + vehicle-status topics exist
+
+
 class ShiftState(BaseModel):
     shift_state: str = ""
     pending_gear: str = ""
@@ -220,3 +227,5 @@ class Telemetry(BaseModel):
     # Commanded target + stream liveness.
     requested: RequestedState = RequestedState()
     stream: StreamState = StreamState()
+    # ROS2 graph detection.
+    ros2: Ros2State = Ros2State()
