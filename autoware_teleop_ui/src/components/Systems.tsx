@@ -19,14 +19,14 @@ function Segmented<T extends string>({ options, value, onChange, label, disabled
       <div className={`flex rounded-lg bg-zinc-800 p-1 border border-zinc-700/60 ${disabled ? "opacity-50" : ""}`}>
         {options.map((o) => {
           const isActive = o === active;
-          const activeStyle = MODE_COLORS[o] || "bg-blue-600 text-white shadow-sm font-bold";
+          const activeStyle = MODE_COLORS[o] || "bg-blue-600 text-white shadow-sm font-bold border border-blue-500";
           const style = disabled
             ? isActive
               ? "bg-zinc-700 text-zinc-200 border border-zinc-600"
-              : "text-zinc-500"
+              : "text-zinc-500 border border-transparent"
             : isActive
               ? activeStyle
-              : "text-zinc-400 hover:text-zinc-100 hover:bg-zinc-700/50";
+              : "text-zinc-400 hover:text-zinc-100 hover:bg-zinc-700/50 border border-transparent";
           return (
             <button
               key={o}
@@ -53,12 +53,12 @@ function Toggle({ label, on, onClick, disabled }: {
     <button
       onClick={onClick}
       disabled={disabled}
-      className={`min-h-[36px] w-full flex items-center justify-between gap-2 rounded-lg px-3 py-1.5 text-xs font-bold transition shadow-sm ${
-        disabled ? "opacity-40 cursor-not-allowed" : "hover:border-zinc-500"
+      className={`min-h-[36px] w-full flex items-center justify-between gap-2 rounded-lg px-3 py-1.5 text-xs font-bold transition shadow-sm border ${
+        disabled ? "opacity-40 cursor-not-allowed border-zinc-800" : "hover:border-zinc-500"
       } ${
         on
-          ? "bg-amber-500/20 text-amber-300 border-2 border-amber-500 ring-2 ring-amber-500/20 animate-pulse"
-          : "bg-zinc-800 text-zinc-300 border border-zinc-700 hover:bg-zinc-750"
+          ? "bg-amber-500/20 text-amber-300 border-amber-500 animate-pulse"
+          : "bg-zinc-800 text-zinc-300 border-zinc-700 hover:bg-zinc-750"
       }`}
     >
       <span className="flex items-center gap-1.5">
@@ -71,10 +71,10 @@ function Toggle({ label, on, onClick, disabled }: {
 }
 
 const GEAR_META: Record<string, { full: string; color: string; activeColor: string }> = {
-  PARK: { full: "Park", color: "border-zinc-700 text-zinc-300 hover:bg-zinc-800", activeColor: "bg-zinc-700 text-white border-zinc-500 ring-2 ring-zinc-400" },
-  DRIVE: { full: "Drive", color: "border-blue-800/60 bg-blue-950/20 text-blue-300 hover:bg-blue-900/40", activeColor: "bg-blue-600 text-white border-blue-400 ring-2 ring-blue-400 shadow-md" },
-  REVERSE: { full: "Reverse", color: "border-rose-800/60 bg-rose-950/20 text-rose-300 hover:bg-rose-900/40", activeColor: "bg-rose-600 text-white border-rose-400 ring-2 ring-rose-400 shadow-md" },
-  NEUTRAL: { full: "Neutral", color: "border-emerald-800/60 bg-emerald-950/20 text-emerald-300 hover:bg-emerald-900/40", activeColor: "bg-emerald-600 text-white border-emerald-400 ring-2 ring-emerald-400 shadow-md" },
+  PARK: { full: "Park", color: "border-zinc-700 text-zinc-300 hover:bg-zinc-800 bg-zinc-900/60", activeColor: "bg-zinc-700 text-white border-zinc-500 shadow-sm" },
+  DRIVE: { full: "Drive", color: "border-blue-800/60 bg-blue-950/20 text-blue-300 hover:bg-blue-900/40", activeColor: "bg-blue-600 text-white border-blue-400 shadow-md shadow-blue-600/40" },
+  REVERSE: { full: "Reverse", color: "border-rose-800/60 bg-rose-950/20 text-rose-300 hover:bg-rose-900/40", activeColor: "bg-rose-600 text-white border-rose-400 shadow-md shadow-rose-600/40" },
+  NEUTRAL: { full: "Neutral", color: "border-emerald-800/60 bg-emerald-950/20 text-emerald-300 hover:bg-emerald-900/40", activeColor: "bg-emerald-600 text-white border-emerald-400 shadow-md shadow-emerald-600/40" },
 };
 
 export function Systems() {
@@ -134,12 +134,12 @@ export function Systems() {
 
               if (driveLocked) {
                 btnClass = isActive
-                  ? "bg-zinc-800 text-zinc-300 border-2 border-zinc-600"
+                  ? "bg-zinc-800 text-zinc-300 border border-zinc-600"
                   : "bg-zinc-900 text-zinc-500 border border-zinc-800";
               } else if (isActive) {
                 btnClass = meta.activeColor;
               } else {
-                btnClass = `border ${meta.color} bg-zinc-900/60`;
+                btnClass = meta.color;
               }
 
               return (
@@ -148,7 +148,7 @@ export function Systems() {
                   onClick={() => setGear(g)}
                   disabled={driveLocked}
                   title={!isRemote ? "Gear control disabled in non-REMOTE mode" : `${g} — ${meta.full}${isActive ? " (Requested)" : ""}`}
-                  className={`min-h-[44px] flex flex-col items-center justify-center rounded-lg p-1 transition active:scale-95 min-w-0 ${
+                  className={`min-h-[44px] flex flex-col items-center justify-center rounded-lg p-1 transition active:brightness-110 min-w-0 ${
                     driveLocked ? "cursor-not-allowed opacity-50" : ""
                   } ${btnClass}`}
                 >
@@ -185,7 +185,7 @@ export function Systems() {
         {estopArmed ? (
           <button
             onClick={() => setEstop(false)}
-            className="min-h-[42px] flex items-center justify-center gap-2 w-full rounded-lg border-2 border-red-500 bg-red-950/80 px-4 py-2 text-sm font-bold text-red-200 transition hover:bg-red-900 active:scale-95 animate-pulse shadow-md"
+            className="min-h-[42px] flex items-center justify-center gap-2 w-full rounded-lg border border-red-500 bg-red-950/80 px-4 py-2 text-sm font-bold text-red-200 transition hover:bg-red-900 active:bg-red-950 animate-pulse shadow-md"
             title="Clear emergency stop state"
           >
             <OctagonAlert className="w-4 h-4 shrink-0 text-red-300" />
@@ -194,7 +194,7 @@ export function Systems() {
         ) : (
           <button
             onClick={() => setEstop(true)}
-            className="min-h-[42px] flex items-center justify-center gap-2 w-full rounded-lg bg-red-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-red-500 active:scale-95 shadow-md shadow-red-600/30"
+            className="min-h-[42px] flex items-center justify-center gap-2 w-full rounded-lg bg-red-600 border border-red-500 px-4 py-2 text-sm font-bold text-white transition hover:bg-red-500 active:bg-red-700 shadow-md shadow-red-600/30"
             title="Arm vehicle emergency stop"
           >
             <OctagonAlert className="w-4 h-4 shrink-0 text-white" />

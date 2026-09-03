@@ -228,7 +228,7 @@ export function StatusStrip() {
         <button
           onClick={stopAll}
           title="Zero axes + neutral gear + disengage. Safe-release sent to node."
-          className="min-h-[38px] flex items-center gap-1.5 rounded-lg bg-amber-500 px-4 py-2 text-xs font-bold text-zinc-950 transition hover:bg-amber-400 active:scale-95 shadow-sm"
+          className="min-h-[38px] flex items-center gap-1.5 rounded-lg bg-amber-500 border border-amber-400 px-4 py-2 text-xs font-bold text-zinc-950 transition hover:bg-amber-400 active:bg-amber-600 shadow-sm"
         >
           <Square className="w-3.5 h-3.5 fill-current shrink-0" />
           <span>Stop / Release</span>
@@ -238,7 +238,7 @@ export function StatusStrip() {
           <button
             onClick={() => setEstop(false)}
             title="Clear emergency stop state"
-            className="min-h-[38px] flex items-center gap-1.5 rounded-lg border-2 border-red-500 bg-red-950/80 px-4 py-2 text-xs font-bold text-red-200 transition hover:bg-red-900 active:scale-95 animate-pulse"
+            className="min-h-[38px] flex items-center gap-1.5 rounded-lg border border-red-500 bg-red-950/80 px-4 py-2 text-xs font-bold text-red-200 transition hover:bg-red-900 active:bg-red-950 animate-pulse"
           >
             <OctagonAlert className="w-4 h-4 shrink-0 text-red-300" />
             <span>CLEAR ESTOP</span>
@@ -247,7 +247,7 @@ export function StatusStrip() {
           <button
             onClick={() => setEstop(true)}
             title="Trigger emergency stop (disarms vehicle and holds brakes)"
-            className="min-h-[38px] flex items-center gap-1.5 rounded-lg bg-red-600 px-5 py-2 text-xs font-bold text-white transition hover:bg-red-500 active:scale-95 shadow-sm shadow-red-600/40"
+            className="min-h-[38px] flex items-center gap-1.5 rounded-lg bg-red-600 border border-red-500 px-5 py-2 text-xs font-bold text-white transition hover:bg-red-500 active:bg-red-700 shadow-sm shadow-red-600/40"
           >
             <OctagonAlert className="w-4 h-4 shrink-0 text-white" />
             <span>EMERGENCY STOP</span>

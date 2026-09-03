@@ -151,23 +151,23 @@ function Keycaps({ keys }: { keys: Partial<Record<string, boolean>> }) {
   ] as const;
 
   return (
-    <div className="rounded-lg border border-zinc-800 bg-zinc-950/60 p-2.5 space-y-2">
+    <div className="h-[72px] rounded-lg border border-zinc-800 bg-zinc-950/60 p-2 space-y-1.5">
       <div className="flex flex-wrap items-center gap-1.5">
         {defs.map(([label, active, hint]) => (
           <kbd
             key={label}
             title={hint}
-            className={`min-h-[30px] rounded-md px-3 py-1 font-mono text-xs font-bold transition shadow-sm ${
+            className={`min-h-[26px] rounded-md px-2.5 py-0.5 font-mono text-xs font-bold transition shadow-sm border ${
               active
-                ? "bg-blue-600 text-white ring-2 ring-blue-400 scale-105"
-                : "bg-zinc-800 text-zinc-300 border border-zinc-700"
+                ? "bg-blue-600 text-white border-blue-400 shadow-blue-500/50"
+                : "bg-zinc-800 text-zinc-300 border-zinc-700"
             }`}
           >
             {label}
           </kbd>
         ))}
       </div>
-      <p className="text-xs leading-relaxed text-zinc-400">
+      <p className="text-[11px] leading-tight text-zinc-400">
         Hold keys to drive — <span className="font-semibold text-zinc-200">W/S</span> throttle ·{" "}
         <span className="font-semibold text-zinc-200">A/D</span> steer ·{" "}
         <span className="font-semibold text-zinc-200">Space</span> brake
@@ -230,41 +230,62 @@ export function Console() {
           </div>
         </div>
 
-        {/* Remote Mode Conflict Warning or Clear Status */}
-        {isRemote ? (
-          autowareConflict ? (
-            <div className="rounded-lg border-2 border-amber-500 bg-amber-950/80 p-2.5 text-amber-200 space-y-1 shadow-md animate-pulse">
-              <div className="flex items-center gap-2 font-bold text-xs text-amber-300">
-                <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
-                <span>TOPIC CONFLICT: Autoware Universe Running</span>
+        {/* Stable Status Slot (fixed height to prevent layout shift) */}
+        <div className="min-h-[34px] flex items-center">
+          {isRemote ? (
+            autowareConflict ? (
+              <div className="w-full rounded-lg border border-amber-500 bg-amber-950/80 px-2.5 py-1 text-amber-200 shadow-md">
+                <div className="flex items-center gap-2 font-bold text-xs text-amber-300">
+                  <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                  <span>TOPIC CONFLICT: Autoware Universe Running</span>
+                </div>
               </div>
-              <p className="text-[11px] leading-relaxed text-amber-200/90 font-sans">
-                Autoware Universe is active. Drive commands may collide on /control/command/* topics!
-              </p>
-            </div>
+            ) : (
+              <div className="w-full flex items-center justify-between rounded-lg bg-zinc-950/60 px-3 py-1.5 border border-zinc-800 text-xs">
+                <span className="text-zinc-400 text-[11px]">Autoware Status:</span>
+                <span className="text-emerald-400 font-semibold text-[11px] flex items-center gap-1.5">
+                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                  Clear · Remote Authority Active
+                </span>
+              </div>
+            )
           ) : (
-            <div className="flex items-center justify-between rounded-lg bg-zinc-950/60 px-3 py-1.5 border border-zinc-800 text-xs">
-              <span className="text-zinc-400 text-[11px]">Autoware Status:</span>
-              <span className="text-emerald-400 font-semibold text-[11px] flex items-center gap-1.5">
-                <ShieldCheck className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                Clear · Remote Authority Active
+            <div className="w-full flex items-center justify-between rounded-lg bg-zinc-950/40 px-3 py-1.5 border border-zinc-850 text-xs">
+              <span className="text-zinc-500 text-[11px]">Mode Authority:</span>
+              <span className="text-zinc-400 font-medium text-[11px]">
+                {intent.operation_mode === "FULL"
+                  ? "Autonomous (Passive Monitor)"
+                  : intent.operation_mode === "SIM"
+                    ? "Simulation (Viewing Only)"
+                    : "Vehicle Stopped (Safe Hold)"}
               </span>
             </div>
-          )
-        ) : null}
+          )}
+        </div>
 
         <Segmented options={INPUT_MODES} value={intent.input_mode} onChange={setInputMode} label="Input Mode" />
-        {isKeyboard && <Keycaps keys={keys} />}
+
+        {/* Stable Input Hint Slot (prevents vertical jump when toggling keyboard/raw) */}
+        <div className="min-h-[72px]">
+          {isKeyboard ? (
+            <Keycaps keys={keys} />
+          ) : (
+            <div className="h-[72px] flex flex-col justify-center rounded-lg border border-zinc-800 bg-zinc-950/40 px-3 py-2 text-xs text-zinc-400">
+              <div className="font-semibold text-zinc-300 text-[11px]">Direct Axis Input</div>
+              <p className="text-[11px] text-zinc-500 mt-0.5">Control vehicle using the sliders or click-to-edit values below.</p>
+            </div>
+          )}
+        </div>
 
         <button
           onClick={toggleEngage}
           disabled={!isRemote}
-          className={`min-h-[42px] flex items-center justify-center gap-2 w-full rounded-lg px-4 py-2 text-sm font-bold tracking-wide transition active:scale-[0.99] ${
+          className={`min-h-[42px] flex items-center justify-center gap-2 w-full rounded-lg px-4 py-2 text-sm font-bold tracking-wide transition border ${
             !isRemote
-              ? "bg-zinc-800/80 text-zinc-400 border border-zinc-700 cursor-not-allowed opacity-70"
+              ? "bg-zinc-800/80 text-zinc-400 border-zinc-700 cursor-not-allowed opacity-70"
               : intent.engage
-                ? "bg-emerald-600 text-white shadow-lg shadow-emerald-600/30 ring-2 ring-emerald-400 hover:bg-emerald-500"
-                : "border-2 border-emerald-500/70 bg-emerald-950/30 text-emerald-300 hover:bg-emerald-900/50 hover:border-emerald-400"
+                ? "bg-emerald-600 text-white border-emerald-400 shadow-md shadow-emerald-600/30 hover:bg-emerald-500"
+                : "border-emerald-500/70 bg-emerald-950/30 text-emerald-300 hover:bg-emerald-900/50 hover:border-emerald-400"
           }`}
         >
           {!isRemote ? (
