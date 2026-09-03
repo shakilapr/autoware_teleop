@@ -108,6 +108,10 @@ on_activate(const rclcpp_lifecycle::State &)
   pub_control_->on_activate();
   pub_gear_->on_activate();
   pub_emergency_->on_activate();
+  {
+    std::lock_guard<std::mutex> lock(mutex_);
+    command_pubs_active_ = true;
+  }
 
   emergency_.store(false, std::memory_order_relaxed);
   last_intent_ms_.store(0, std::memory_order_relaxed);
@@ -130,6 +134,10 @@ on_deactivate(const rclcpp_lifecycle::State &)
   pub_control_->on_deactivate();
   pub_gear_->on_deactivate();
   pub_emergency_->on_deactivate();
+  {
+    std::lock_guard<std::mutex> lock(mutex_);
+    command_pubs_active_ = false;
+  }
   RCLCPP_INFO(get_logger(), "Deactivated (safe release).");
   return CallbackReturn::SUCCESS;
 }
@@ -353,9 +361,28 @@ void TeleopNode::on_timer()
   }
 
   uint8_t op_mode = 0;
+  bool command_pubs_wanted = true;
   {
     std::lock_guard<std::mutex> lock(mutex_);
     op_mode = intent_.operation_mode;
+    command_pubs_wanted = op_mode != 1 && op_mode != 2;  // FULL/SIM: no teleop command output
+    if (command_pubs_wanted != command_pubs_active_) {
+      // Change the graph presence so the node is not a competing publisher of
+      // /control/command/* while Autoware (FULL) or the sim (SIM) owns the topic.
+      if (command_pubs_wanted) {
+        pub_control_->on_activate();
+        pub_gear_->on_activate();
+        pub_emergency_->on_activate();
+      } else {
+        pub_control_->on_deactivate();
+        pub_gear_->on_deactivate();
+        pub_emergency_->on_deactivate();
+      }
+      command_pubs_active_ = command_pubs_wanted;
+      RCLCPP_INFO(
+        get_logger(), "Op mode %u: command publishers %s", op_mode,
+        command_pubs_wanted ? "activated" : "deactivated (viewing only)");
+    }
   }
 
   // Operation modes:

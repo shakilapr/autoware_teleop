@@ -129,6 +129,10 @@ private:
   // Ownership: last accepted sequence + source for stale/regressed rejection.
   uint32_t last_sequence_{0};
   std::string active_source_;
+  // Whether the /control/command publishers are active. FULL/SIM deactivate them
+  // so the teleop node leaves the command-topic graph (no self-conflict with
+  // Autoware). Guarded by mutex_.
+  bool command_pubs_active_{true};
   // Resolved authority limits (param cap enforced on set).
   double limit_fwd_{0.0};
   double limit_rev_{0.0};
