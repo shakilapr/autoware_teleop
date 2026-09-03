@@ -351,6 +351,11 @@ export const useTeleop = create<TeleopState>((set, get) => ({
 
   connect: (url) => {
     const wsUrl = url ?? (() => {
+      if (typeof window !== "undefined") {
+        const params = new URLSearchParams(window.location.search);
+        const override = params.get("ws");
+        if (override) return override;
+      }
       const proto = location.protocol === "https:" ? "wss" : "ws";
       return `${proto}://${location.host}/ws`;
     })();
@@ -381,14 +386,14 @@ export const useTeleop = create<TeleopState>((set, get) => ({
         _retry = 0;
         lastMsg = Date.now();
         set({ connected: true, reconnectAttempts: 0, streamQuality: "live" });
-        get().addLog("INFO", "BRIDGE", "WebSocket transport connected to Teleop Gateway");
+        get().addLog("INFO", "BRIDGE", `WebSocket transport connected to ${wsUrl}`);
       };
-      ws.onclose = () => {
+      ws.onclose = (ev) => {
         if (_ws !== ws) return; // a newer socket owns the lifecycle
         _ws = null;
         set({ connected: false, ws: null, streamQuality: "lost" });
         get().releaseAll();
-        get().addLog("ERROR", "BRIDGE", `WebSocket transport disconnected. Reconnecting attempt ${_retry + 1}...`);
+        get().addLog("ERROR", "BRIDGE", `WebSocket disconnected (code ${ev.code || 1006} on ${wsUrl}). Retry ${_retry + 1}...`);
         scheduleReconnect();
       };
       ws.onerror = () => ws.close();

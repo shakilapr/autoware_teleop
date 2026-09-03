@@ -35,6 +35,7 @@ import time
 from pathlib import Path
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -49,6 +50,14 @@ _REPO_DIR = Path(__file__).resolve().parents[2]
 UI_DIR = _REPO_DIR / "autoware_teleop_ui" / "dist"
 
 app = FastAPI(title="autoware_teleop", version="0.1.0")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 _bridge: ros_bridge.TeleopRosBridge | None = None
 _spin: "asyncio.Task | threading.Thread | None" = None

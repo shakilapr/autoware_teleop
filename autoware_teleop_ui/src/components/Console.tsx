@@ -110,31 +110,34 @@ function CommandMeter({ label, axis, accent, physical }: {
     : undefined;
 
   return (
-    <div className="text-xs text-zinc-300">
-      <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+    <div className="text-xs text-zinc-300 min-h-[32px] flex items-center">
+      <div className="flex items-center gap-2 sm:gap-3 min-w-0 w-full">
         <span className="w-18 sm:w-20 shrink-0 font-medium truncate text-[11px] sm:text-xs" title={label}>{label}</span>
-        {bipolar ? (
-          <div className="relative h-2.5 min-w-[80px] flex-1 rounded-full bg-zinc-800 border border-zinc-700" style={trackStyle}>
-            <div className="absolute left-1/2 top-0 h-full w-0.5 bg-zinc-400" />
-            <div
-              className={`absolute top-0 h-full rounded-full ${accent.includes("ef4444") ? "bg-red-500" : "bg-emerald-500"}`}
-              style={{ left: "50%", ...fillStyle }}
-            />
-          </div>
-        ) : (
-          <div className="h-2.5 min-w-[80px] flex-1 rounded-full bg-zinc-800 border border-zinc-700">
-            <div
-              className={`h-full rounded-full ${accent.includes("ef4444") ? "bg-red-500" : "bg-emerald-500"}`}
-              style={fillStyle}
-            />
-          </div>
-        )}
-        <span className="w-22 sm:w-24 shrink-0 text-right font-mono text-[11px] sm:text-xs font-semibold text-zinc-100">{physical}</span>
+        <div className="relative flex-1 min-w-0 flex items-center">
+          {bipolar ? (
+            <div className="relative h-2 w-full rounded-full bg-zinc-800 border border-zinc-700" style={trackStyle}>
+              <div className="absolute left-1/2 top-0 h-full w-0.5 bg-zinc-400" />
+              <div
+                className={`absolute top-0 h-full rounded-full ${accent.includes("ef4444") ? "bg-red-500" : "bg-emerald-500"}`}
+                style={{ left: "50%", ...fillStyle }}
+              />
+            </div>
+          ) : (
+            <div className="h-2 w-full rounded-full bg-zinc-800 border border-zinc-700">
+              <div
+                className={`h-full rounded-full ${accent.includes("ef4444") ? "bg-red-500" : "bg-emerald-500"}`}
+                style={fillStyle}
+              />
+            </div>
+          )}
+        </div>
+        <div className="h-8 w-14 sm:w-16 shrink-0 rounded-md border border-zinc-700 bg-zinc-800/80 px-1.5 flex items-center justify-end font-mono text-[11px] sm:text-xs font-semibold text-zinc-100 truncate" title={physical}>
+          {physical}
+        </div>
       </div>
     </div>
   );
 }
-
 
 function fmtCmd(v: number, unit: string) {
   const s = v >= 0 ? "" : "-";
@@ -151,13 +154,13 @@ function Keycaps({ keys }: { keys: Partial<Record<string, boolean>> }) {
   ] as const;
 
   return (
-    <div className="h-[72px] rounded-lg border border-zinc-800 bg-zinc-950/60 p-2 space-y-1.5">
+    <div className="h-[72px] rounded-lg border border-zinc-800 bg-zinc-950/60 p-2 flex flex-col justify-between">
       <div className="flex flex-wrap items-center gap-1.5">
         {defs.map(([label, active, hint]) => (
           <kbd
             key={label}
             title={hint}
-            className={`min-h-[26px] rounded-md px-2.5 py-0.5 font-mono text-xs font-bold transition shadow-sm border ${
+            className={`h-[24px] flex items-center justify-center rounded-md px-2 font-mono text-[11px] font-bold transition shadow-sm border ${
               active
                 ? "bg-blue-600 text-white border-blue-400 shadow-blue-500/50"
                 : "bg-zinc-800 text-zinc-300 border-zinc-700"
@@ -167,7 +170,7 @@ function Keycaps({ keys }: { keys: Partial<Record<string, boolean>> }) {
           </kbd>
         ))}
       </div>
-      <p className="text-[11px] leading-tight text-zinc-400">
+      <p className="text-[10.5px] leading-none text-zinc-400 truncate">
         Hold keys to drive — <span className="font-semibold text-zinc-200">W/S</span> throttle ·{" "}
         <span className="font-semibold text-zinc-200">A/D</span> steer ·{" "}
         <span className="font-semibold text-zinc-200">Space</span> brake
@@ -231,28 +234,28 @@ export function Console() {
         </div>
 
         {/* Stable Status Slot (fixed height to prevent layout shift) */}
-        <div className="min-h-[34px] flex items-center">
+        <div className="h-[34px] flex items-center">
           {isRemote ? (
             autowareConflict ? (
-              <div className="w-full rounded-lg border border-amber-500 bg-amber-950/80 px-2.5 py-1 text-amber-200 shadow-md">
-                <div className="flex items-center gap-2 font-bold text-xs text-amber-300">
+              <div className="w-full h-full flex items-center rounded-lg border border-amber-500 bg-amber-950/80 px-2.5 text-amber-200 shadow-md">
+                <div className="flex items-center gap-2 font-bold text-xs text-amber-300 truncate">
                   <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                  <span>TOPIC CONFLICT: Autoware Universe Running</span>
+                  <span className="truncate">TOPIC CONFLICT: Autoware Universe Running</span>
                 </div>
               </div>
             ) : (
-              <div className="w-full flex items-center justify-between rounded-lg bg-zinc-950/60 px-3 py-1.5 border border-zinc-800 text-xs">
-                <span className="text-zinc-400 text-[11px]">Autoware Status:</span>
-                <span className="text-emerald-400 font-semibold text-[11px] flex items-center gap-1.5">
+              <div className="w-full h-full flex items-center justify-between rounded-lg bg-zinc-950/60 px-3 border border-zinc-800 text-xs">
+                <span className="text-zinc-400 text-[11px] shrink-0">Autoware Status:</span>
+                <span className="text-emerald-400 font-semibold text-[11px] flex items-center gap-1.5 truncate">
                   <ShieldCheck className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                  Clear · Remote Authority Active
+                  <span className="truncate">Clear · Remote Authority Active</span>
                 </span>
               </div>
             )
           ) : (
-            <div className="w-full flex items-center justify-between rounded-lg bg-zinc-950/40 px-3 py-1.5 border border-zinc-850 text-xs">
-              <span className="text-zinc-500 text-[11px]">Mode Authority:</span>
-              <span className="text-zinc-400 font-medium text-[11px]">
+            <div className="w-full h-full flex items-center justify-between rounded-lg bg-zinc-950/40 px-3 border border-zinc-850 text-xs">
+              <span className="text-zinc-500 text-[11px] shrink-0">Mode Authority:</span>
+              <span className="text-zinc-400 font-medium text-[11px] truncate">
                 {intent.operation_mode === "FULL"
                   ? "Autonomous (Passive Monitor)"
                   : intent.operation_mode === "SIM"
@@ -266,7 +269,7 @@ export function Console() {
         <Segmented options={INPUT_MODES} value={intent.input_mode} onChange={setInputMode} label="Input Mode" />
 
         {/* Stable Input Hint Slot (prevents vertical jump when toggling keyboard/raw) */}
-        <div className="min-h-[72px]">
+        <div className="h-[72px]">
           {isKeyboard ? (
             <Keycaps keys={keys} />
           ) : (
@@ -280,7 +283,7 @@ export function Console() {
         <button
           onClick={toggleEngage}
           disabled={!isRemote}
-          className={`min-h-[42px] flex items-center justify-center gap-2 w-full rounded-lg px-4 py-2 text-sm font-bold tracking-wide transition border ${
+          className={`h-[42px] flex items-center justify-center gap-2 w-full rounded-lg px-3 py-2 text-xs sm:text-sm font-bold tracking-wide transition border ${
             !isRemote
               ? "bg-zinc-800/80 text-zinc-400 border-zinc-700 cursor-not-allowed opacity-70"
               : intent.engage
@@ -291,23 +294,23 @@ export function Console() {
           {!isRemote ? (
             <>
               <Lock className="w-4 h-4 shrink-0" />
-              <span>
+              <span className="truncate">
                 {intent.operation_mode === "FULL"
-                  ? "FULL AUTONOMOUS MODE (DRIVE DISABLED)"
+                  ? "AUTONOMOUS MODE (LOCKED)"
                   : intent.operation_mode === "SIM"
-                    ? "SIMULATION MODE (DRIVE DISABLED)"
-                    : "VEHICLE STOPPED (DRIVE DISABLED)"}
+                    ? "SIMULATION MODE (LOCKED)"
+                    : "VEHICLE STOPPED (LOCKED)"}
               </span>
             </>
           ) : intent.engage ? (
             <>
               <Check className="w-4 h-4 shrink-0 stroke-[3]" />
-              <span>VEHICLE ENGAGED (CLICK TO LOCK)</span>
+              <span className="truncate">ENGAGED (CLICK TO LOCK)</span>
             </>
           ) : (
             <>
               <Zap className="w-4 h-4 shrink-0 fill-current" />
-              <span>PRESS TO ENGAGE CONTROL</span>
+              <span className="truncate">PRESS TO ENGAGE CONTROL</span>
             </>
           )}
         </button>

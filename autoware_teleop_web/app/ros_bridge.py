@@ -30,16 +30,59 @@ import threading
 import time
 from dataclasses import dataclass, field
 
-import rclpy
-from rclpy.node import Node
-from rclpy.qos import QoSProfile, ReliabilityPolicy, DurabilityPolicy
+try:
+    import rclpy
+    from rclpy.node import Node
+    from rclpy.qos import QoSProfile, ReliabilityPolicy, DurabilityPolicy
 
-from autoware_teleop_msgs.msg import Intent as IntentMsg
-from autoware_vehicle_msgs.msg import ControlModeReport
-from autoware_vehicle_msgs.msg import GearCommand
-from autoware_vehicle_msgs.msg import GearReport
-from autoware_vehicle_msgs.msg import SteeringReport
-from autoware_vehicle_msgs.msg import VelocityReport
+    from autoware_teleop_msgs.msg import Intent as IntentMsg
+    from autoware_vehicle_msgs.msg import ControlModeReport
+    from autoware_vehicle_msgs.msg import GearCommand
+    from autoware_vehicle_msgs.msg import GearReport
+    from autoware_vehicle_msgs.msg import SteeringReport
+    from autoware_vehicle_msgs.msg import VelocityReport
+    HAS_RCLPY = True
+except ImportError:
+    HAS_RCLPY = False
+
+    class Node:  # type: ignore
+        def __init__(self, *args, **kwargs):
+            pass
+
+    class QoSProfile:  # type: ignore
+        def __init__(self, *args, **kwargs):
+            pass
+
+    class IntentMsg:  # type: ignore
+        pass
+
+    class GearCommand:  # type: ignore
+        NONE = 0
+        PARK = 1
+        DRIVE = 2
+        REVERSE = 20
+        NEUTRAL = 22
+
+    class GearReport:  # type: ignore
+        NONE = 0
+        PARK = 1
+        DRIVE = 2
+        REVERSE = 20
+        NEUTRAL = 22
+        LOW = 23
+
+    class ControlModeReport:  # type: ignore
+        NO_COMMAND = 0
+        AUTONOMOUS = 1
+        MANUAL = 2
+        DISENGAGED = 3
+        NOT_READY = 4
+
+    class SteeringReport:  # type: ignore
+        pass
+
+    class VelocityReport:  # type: ignore
+        pass
 
 from .schemas import OP_MODE_NAME, OP_MODE_VAL, MANUAL_MODE_VAL, classify_conflict, actual_mode_name
 
@@ -380,8 +423,100 @@ class TeleopRosBridge(Node):
             time.sleep(period)
 
 
+class MockTeleopRosBridge:
+    """Mock bridge used when rclpy is absent (e.g. running on Windows, local bench, or mock test)."""
+
+    def __init__(self):
+        self.telemetry = TelemetrySnapshot(
+            freshness={
+                "velocity": TopicFreshness(period_ms=100.0),
+                "steering": TopicFreshness(period_ms=100.0),
+                "gear": TopicFreshness(period_ms=100.0),
+                "control_mode": TopicFreshness(period_ms=100.0),
+            }
+        )
+        self._throttle = 0.0
+        self._brake = 0.0
+        self._steer = 0.0
+        self._gear = "NEUTRAL"
+        self._operation_mode = 0
+        self._manual_mode = 2
+        self._engage = False
+        self._bp = {
+            "enable_mtr": True, "enable_ses": True, "enable_seb": True,
+            "send_mode_auto": True, "sim_mode": True, "publish_brake_diag": False,
+            "max_speed_forward": 3.0, "max_speed_reverse": 0.5,
+            "max_steering_angle": 0.747, "max_deceleration": 5.0,
+        }
+        self._running = False
+        self._rate = 10.0
+        self._sim_thread: threading.Thread | None = None
+
+    def set_intent(self, intent: dict):
+        self._throttle = float(intent.get("throttle", 0.0))
+        self._brake = float(intent.get("brake", 0.0))
+        self._steer = float(intent.get("steer", 0.0))
+        self._gear = intent.get("gear", "NEUTRAL")
+        op = intent.get("operation_mode", 0)
+        self._operation_mode = OP_MODE_VAL.get(op, op) if isinstance(op, str) else int(op)
+        self._engage = bool(intent.get("engage", False))
+        if "bridge_params" in intent and isinstance(intent["bridge_params"], dict):
+            self._bp.update(intent["bridge_params"])
+
+    def get_operation_mode_name(self) -> str:
+        return OP_MODE_NAME.get(self._operation_mode, "STOP")
+
+    def check_autoware_conflict(self) -> bool:
+        return False
+
+    def graph_status(self) -> dict:
+        return {"ros2_ok": False, "autoware_present": False}
+
+    def start(self, rate: float = 10.0):
+        self._rate = rate
+        self._running = True
+        self._sim_thread = threading.Thread(target=self._sim_loop, daemon=True)
+        self._sim_thread.start()
+
+    def stop(self):
+        self._running = False
+        if self._sim_thread:
+            self._sim_thread.join(timeout=1.0)
+            self._sim_thread = None
+
+    def _sim_loop(self):
+        dt = 1.0 / self._rate
+        curr_vel = 0.0
+        curr_steer = 0.0
+        while self._running:
+            if self._engage and self._operation_mode == 3:  # REMOTE
+                target_vel = self._throttle * self._bp.get("max_speed_forward", 3.0)
+                if self._brake > 0:
+                    target_vel = max(0.0, target_vel - self._brake * 2.0)
+                target_steer = self._steer * self._bp.get("max_steering_angle", 0.747)
+                curr_vel += (target_vel - curr_vel) * 0.2
+                curr_steer += (target_steer - curr_steer) * 0.3
+                self.telemetry.update(
+                    velocity=round(curr_vel, 2),
+                    steer=round(curr_steer, 3),
+                    gear=self._gear,
+                    vehicle_mode=2,  # MANUAL
+                )
+            else:
+                curr_vel *= 0.85
+                self.telemetry.update(
+                    velocity=round(curr_vel, 2),
+                    steer=round(curr_steer, 3),
+                    gear="NEUTRAL" if not self._engage else self._gear,
+                    vehicle_mode=0 if self._operation_mode == 0 else 1,
+                )
+            time.sleep(dt)
+
+
 def spin_bridge(bridge: TeleopRosBridge):
     """Spin the node until stop() is called (run in a background thread)."""
+    if not HAS_RCLPY:
+        return
     executor = rclpy.executors.SingleThreadedExecutor()
     executor.add_node(bridge)
     try:
@@ -390,8 +525,17 @@ def spin_bridge(bridge: TeleopRosBridge):
         executor.shutdown()
 
 
-def create_bridge(rate: float = 10.0) -> tuple[TeleopRosBridge, threading.Thread]:
+def create_bridge(rate: float = 10.0) -> tuple[Any, threading.Thread | None]:
     """Initialize rclpy and create the proxy + spin thread."""
+    if not HAS_RCLPY:
+        import logging
+        logging.getLogger("autoware_teleop_web").warning(
+            "rclpy or autoware msgs not found in environment. Starting standalone mock bridge."
+        )
+        bridge = MockTeleopRosBridge()
+        bridge.start(rate=rate)
+        return bridge, None
+
     if not rclpy.ok():
         rclpy.init()
     bridge = TeleopRosBridge()
@@ -401,8 +545,9 @@ def create_bridge(rate: float = 10.0) -> tuple[TeleopRosBridge, threading.Thread
     return bridge, spin
 
 
-def shutdown_bridge(bridge: TeleopRosBridge, spin: threading.Thread):
+def shutdown_bridge(bridge: Any, spin: threading.Thread | None):
     bridge.stop()
-    bridge.destroy_node()
-    if rclpy.ok():
-        rclpy.shutdown()
+    if HAS_RCLPY and hasattr(bridge, "destroy_node"):
+        bridge.destroy_node()
+        if rclpy.ok():
+            rclpy.shutdown()

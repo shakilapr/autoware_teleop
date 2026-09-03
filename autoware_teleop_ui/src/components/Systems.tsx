@@ -92,10 +92,10 @@ export function Systems() {
   const driveLocked = locked || !isRemote;
 
   const MODE_EXPLANATIONS: Record<string, string> = {
-    STOP: "Vehicle stopped. Drive control inactive.",
-    FULL: "Autonomous mode · Autoware Universe controlling vehicle · Viewing only",
-    SIM: "Simulation mode · No hardware sensors · Viewing only",
-    REMOTE: "Remote teleoperation · Drive control active when engaged",
+    STOP: "Vehicle stopped · Drive control inactive",
+    FULL: "Autoware Autonomous · Viewing only",
+    SIM: "Simulation active · Viewing only",
+    REMOTE: "Remote teleop · Drive active when engaged",
   };
 
   return (
@@ -109,8 +109,8 @@ export function Systems() {
         <div className="space-y-2">
           <Segmented options={OPERATION_MODES} value={intent.operation_mode}
             onChange={setOperationMode} label="Operation Mode" />
-          <div className="text-[11px] font-medium text-zinc-400 bg-zinc-950/60 px-2.5 py-1 rounded-md border border-zinc-800/80">
-            {MODE_EXPLANATIONS[intent.operation_mode]}
+          <div className="h-[28px] flex items-center text-[11px] font-medium text-zinc-400 bg-zinc-950/60 px-2.5 rounded-md border border-zinc-800/80 truncate">
+            <span className="truncate">{MODE_EXPLANATIONS[intent.operation_mode]}</span>
           </div>
           <Segmented options={MANUAL_MODES} value={intent.manual_control_mode}
             onChange={setManualMode} label="Control Mode" disabled={driveLocked} />
