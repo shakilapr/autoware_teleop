@@ -174,6 +174,19 @@ def test_modestate_new_fields_defaults():
     assert t.mode.autoware_conflict is False
     assert t.mode.autoware_warning is False
     assert t.mode.autoware_auto_confirmed is False
+    # ROS2 graph detection defaults (nothing detected).
+    assert t.ros2.ok is False
+    assert t.ros2.autoware_present is False
+
+
+def test_ros2_state_roundtrip():
+    t = Telemetry()
+    t.ros2.ok = True
+    t.ros2.autoware_present = True
+    d = t.model_dump()
+    back = Telemetry.model_validate(d)
+    assert back.ros2.ok is True
+    assert back.ros2.autoware_present is True
 
 
 def test_classify_conflict_truth_table():

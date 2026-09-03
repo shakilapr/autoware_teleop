@@ -40,6 +40,7 @@ export function StatusStrip() {
   
   const reasons: string[] = [];
   if (!connected) reasons.push("Not connected to vehicle");
+  if (!telemetry.ros2.ok) reasons.push("ROS2 graph not detected");
   if (estopArmed) reasons.push("Emergency stop armed");
   if (conflict) reasons.push("Autoware is driving (AUTO) while REMOTE is engaged — conflict");
   if (!isRemote) reasons.push(`Mode is ${intent.operation_mode} — drive controls inactive`);
@@ -119,6 +120,43 @@ export function StatusStrip() {
           )}
           <span>{txState.label}</span>
         </span>
+
+        {/* ROS2 graph detection: does the ROS2 environment the web bridge talks
+            to actually have the Autoware control/status topics? */}
+        {(() => {
+          const r = telemetry.ros2;
+          if (!connected || !r.ok) {
+            return (
+              <span
+                className="flex items-center gap-1 rounded-lg bg-zinc-800/60 border border-zinc-700 px-2.5 py-1.5 text-xs font-semibold text-zinc-500"
+                title="No ROS2 graph detected. Start ros2 + the vehicle bridge so this tool can reach the Autoware topics."
+              >
+                <RefreshCw className="w-3.5 h-3.5 animate-spin text-zinc-500" />
+                ROS2: down
+              </span>
+            );
+          }
+          if (!r.autoware_present) {
+            return (
+              <span
+                className="flex items-center gap-1 rounded-lg bg-amber-500/20 border border-amber-500/60 px-2.5 py-1.5 text-xs font-semibold text-amber-300"
+                title="ROS2 graph is up but the Autoware vehicle-interface topics are not present. Start the Autoware/vehicle stack."
+              >
+                <Activity className="w-3.5 h-3.5 text-amber-400" />
+                ROS2 OK · Autoware absent
+              </span>
+            );
+          }
+          return (
+            <span
+              className="flex items-center gap-1 rounded-lg bg-emerald-500/20 border border-emerald-500/60 px-2.5 py-1.5 text-xs font-semibold text-emerald-300"
+              title="ROS2 graph is up and the Autoware control + vehicle-status topics are present."
+            >
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+              ROS2 · Autoware up
+            </span>
+          );
+        })()}
 
         <span
           className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium border border-zinc-700 bg-zinc-800/60 text-zinc-300"
