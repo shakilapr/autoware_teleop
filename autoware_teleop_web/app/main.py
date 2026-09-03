@@ -58,7 +58,14 @@ def _telemetry_payload() -> dict:
     snap = _bridge.telemetry.snapshot() if _bridge else {}
     t = Telemetry()
     t.mode.operation_mode = _bridge.get_operation_mode_name() if _bridge else "STOP"
-    t.mode.autoware_conflict = _bridge.check_autoware_conflict() if _bridge else False
+    if _bridge:
+        actual_name, flags = _bridge.get_vehicle_mode()
+        t.mode.actual_vehicle_mode = actual_name
+        t.mode.autoware_conflict = flags["conflict"]
+        t.mode.autoware_warning = flags["warning"]
+        t.mode.autoware_auto_confirmed = flags["auto_confirmed"]
+    else:
+        t.mode.actual_vehicle_mode = "UNKNOWN"
     t.vehicle.velocity = snap.get("velocity", 0.0)
     t.vehicle.steer_angle = snap.get("steer_angle", 0.0)
     t.vehicle.gear = snap.get("gear", "NEUTRAL")

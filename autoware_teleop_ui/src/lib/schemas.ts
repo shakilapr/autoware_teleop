@@ -11,7 +11,7 @@ export type InputMode = (typeof INPUT_MODES)[number];
 export const OPERATION_MODES = ["STOP", "FULL", "SIM", "REMOTE"] as const;
 export type OperationMode = (typeof OPERATION_MODES)[number];
 
-export const MANUAL_MODES = ["PEDALS", "ACCELERATION", "VELOCITY"] as const;
+export const MANUAL_MODES = ["DISABLED", "PEDALS", "ACCELERATION", "VELOCITY"] as const;
 export type ManualMode = (typeof MANUAL_MODES)[number];
 
 export const TURN = ["NONE", "LEFT", "RIGHT"] as const;
@@ -59,10 +59,13 @@ export type Intent = z.infer<typeof IntentSchema>;
 export const TelemetrySchema = z.object({
   mode: z.object({
     operation_mode: z.enum(OPERATION_MODES),
+    actual_vehicle_mode: z.string(),
     manual_control_mode: z.enum(MANUAL_MODES),
     drive_mode: z.string(),
     mode_status: z.string(),
     autoware_conflict: z.boolean().default(false),
+    autoware_warning: z.boolean().default(false),
+    autoware_auto_confirmed: z.boolean().default(false),
   }),
   vehicle: z.object({
     velocity: z.number(),
@@ -114,7 +117,7 @@ export const defaultIntent: Intent = {
 };
 
 export const defaultTelemetry: Telemetry = {
-  mode: { operation_mode: "STOP", manual_control_mode: "VELOCITY", drive_mode: "stop", mode_status: "", autoware_conflict: false },
+  mode: { operation_mode: "STOP", actual_vehicle_mode: "UNKNOWN", manual_control_mode: "VELOCITY", drive_mode: "stop", mode_status: "", autoware_conflict: false, autoware_warning: false, autoware_auto_confirmed: false },
   vehicle: { velocity: 0, steer_angle: 0, gear: "NEUTRAL", turn_indicator: "NONE", hazard: false, freshness: "unseen", age_ms: 0 },
   target: { target_velocity: 0, target_acceleration: 0, target_steer: 0 },
   shift: { shift_state: "", pending_gear: "" },

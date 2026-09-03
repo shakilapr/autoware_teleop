@@ -20,7 +20,7 @@ These run without ROS (pure Pydantic) so CI can validate the contract quickly.
 from pydantic import ValidationError
 import pytest
 
-from app.schemas import Intent, Telemetry, ControlIntent, DiscreteIntent
+from app.schemas import Intent, Telemetry, ControlIntent, DiscreteIntent, classify_conflict
 
 
 def test_intent_defaults():
@@ -166,3 +166,47 @@ def test_ping_envelope_is_telemetry_free():
     assert "vehicle" not in ping
     assert "mode" not in ping
     assert "requested" not in ping
+
+
+def test_modestate_new_fields_defaults():
+    t = Telemetry()
+    assert t.mode.actual_vehicle_mode == "UNKNOWN"
+    assert t.mode.autoware_conflict is False
+    assert t.mode.autoware_warning is False
+    assert t.mode.autoware_auto_confirmed is False
+
+
+def test_classify_conflict_truth_table():
+    """Conflict/authority classification must match the rig's control authority:
+    /vehicle/status/control_mode == AUTONOMOUS means Autoware has the vehicle."""
+    # control_mode constants used by the E-Trike bridge
+    AUTO = 1        # ControlModeReport.AUTONOMOUS
+    MANUAL = 4      # ControlModeReport.MANUAL
+    DISENGAGED = 5  # ControlModeReport.DISENGAGED
+    STOP, FULL, SIM, REMOTE = 0, 1, 2, 3
+
+    # No/unknown vehicle mode -> no flags, never a false red.
+    none = classify_conflict(REMOTE, True, None)
+    assert none == {"conflict": False, "warning": False, "auto_confirmed": False}
+
+    # Vehicle MANUAL/DISENGAGED -> Autoware is not in control.
+    assert classify_conflict(REMOTE, True, MANUAL)["conflict"] is False
+    assert classify_conflict(REMOTE, False, DISENGAGED)["warning"] is False
+
+    # REMOTE + engaged + AUTO -> RED conflict (drive-authority fight).
+    red = classify_conflict(REMOTE, True, AUTO)
+    assert red["conflict"] is True and red["warning"] is False
+
+    # REMOTE + disengaged + AUTO -> amber warning (ENGAGE would conflict).
+    amber = classify_conflict(REMOTE, False, AUTO)
+    assert amber["warning"] is True and amber["conflict"] is False
+
+    # FULL/SIM + AUTO -> confirmed (Autoware is driving, viewing only).
+    for op in (FULL, SIM):
+        conf = classify_conflict(op, False, AUTO)
+        assert conf["auto_confirmed"] is True
+        assert conf["conflict"] is False and conf["warning"] is False
+
+    # STOP + AUTO -> nothing (no drive path either way).
+    assert classify_conflict(STOP, False, AUTO) == {
+        "conflict": False, "warning": False, "auto_confirmed": False}

@@ -35,10 +35,13 @@ from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy, DurabilityPolicy
 
 from autoware_teleop_msgs.msg import Intent as IntentMsg
+from autoware_vehicle_msgs.msg import ControlModeReport
 from autoware_vehicle_msgs.msg import GearCommand
 from autoware_vehicle_msgs.msg import GearReport
 from autoware_vehicle_msgs.msg import SteeringReport
 from autoware_vehicle_msgs.msg import VelocityReport
+
+from .schemas import OP_MODE_NAME, OP_MODE_VAL, MANUAL_MODE_VAL, classify_conflict, actual_mode_name
 
 REPORT_QOS = QoSProfile(depth=1)
 INTENT_QOS = QoSProfile(depth=10)
@@ -56,19 +59,6 @@ GEAR_REPORT_NAME = {
     GearReport.REVERSE: "REVERSE",
     GearReport.PARK: "PARK",
     GearReport.LOW: "LOW",
-}
-
-OP_MODE_NAME = {
-    0: "STOP",
-    1: "FULL",
-    2: "SIM",
-    3: "REMOTE",
-}
-OP_MODE_VAL = {
-    "STOP": 0,
-    "FULL": 1,
-    "SIM": 2,
-    "REMOTE": 3,
 }
 
 
@@ -98,11 +88,12 @@ class TelemetrySnapshot:
     velocity: float = 0.0
     steer_angle: float = 0.0
     gear: str = "NEUTRAL"
+    vehicle_mode: int | None = None   # raw ControlModeReport.mode
     lock: threading.Lock = field(default_factory=threading.Lock)
-    # Per-topic freshness, keyed by report topic (velocity/steering/gear).
+    # Per-topic freshness, keyed by report topic (velocity/steering/gear/control_mode).
     freshness: dict[str, TopicFreshness] = field(default_factory=dict)
 
-    def update(self, velocity=None, steer=None, gear=None):
+    def update(self, velocity=None, steer=None, gear=None, vehicle_mode=None):
         now_ms = time.time() * 1000
         with self.lock:
             if velocity is not None:
@@ -117,14 +108,28 @@ class TelemetrySnapshot:
                 self.gear = gear
                 self.freshness["gear"].seen = True
                 self.freshness["gear"].last_seen_ms = now_ms
+            if vehicle_mode is not None:
+                self.vehicle_mode = int(vehicle_mode)
+                self.freshness["control_mode"].seen = True
+                self.freshness["control_mode"].last_seen_ms = now_ms
 
     def snapshot(self) -> dict:
         now_ms = time.time() * 1000
         with self.lock:
+            mode = self.vehicle_mode
+            cm_fresh = self.freshness["control_mode"]
+            # Treat the mode as unknown if no control_mode sample yet or stale.
+            if not cm_fresh.seen:
+                actual = None
+            elif cm_fresh.classify(now_ms) in ("missing",):
+                actual = None
+            else:
+                actual = mode
             return {
                 "velocity": self.velocity,
                 "steer_angle": self.steer_angle,
                 "gear": self.gear,
+                "vehicle_mode": actual,
                 "freshness": {
                     k: {"freshness": f.classify(now_ms), "age_ms": round(
                         max(0.0, now_ms - f.last_seen_ms), 1) if f.seen else 0.0}
@@ -144,6 +149,7 @@ class TeleopRosBridge(Node):
                 "velocity": TopicFreshness(period_ms=100.0),
                 "steering": TopicFreshness(period_ms=100.0),
                 "gear": TopicFreshness(period_ms=100.0),
+                "control_mode": TopicFreshness(period_ms=100.0),
             }
         )
         self.create_subscription(
@@ -155,6 +161,9 @@ class TeleopRosBridge(Node):
         self.create_subscription(
             GearReport, "/vehicle/status/gear_status",
             self._on_gear, REPORT_QOS)
+        self.create_subscription(
+            ControlModeReport, "/vehicle/status/control_mode",
+            self._on_control_mode, REPORT_QOS)
 
         self._throttle = 0.0
         self._brake = 0.0
@@ -196,6 +205,9 @@ class TeleopRosBridge(Node):
     def _on_gear(self, msg: GearReport):
         self.telemetry.update(gear=GEAR_REPORT_NAME.get(msg.report, "NEUTRAL"))
 
+    def _on_control_mode(self, msg: ControlModeReport):
+        self.telemetry.update(vehicle_mode=msg.mode)
+
     # ---- intent (called from WS thread) ----
     def set_intent(self, intent: dict) -> None:
         self._throttle = max(-1.0, min(1.0, float(intent.get("throttle", 0.0))))
@@ -225,8 +237,9 @@ class TeleopRosBridge(Node):
         self._hazard = bool(intent.get("hazard", False))
         self._operation_mode = OP_MODE_VAL.get(
             intent.get("operation_mode", "STOP"), 0)
-        self._manual_mode = {"PEDALS": 0, "ACCELERATION": 1, "VELOCITY": 2}.get(
-            intent.get("manual_control_mode", "VELOCITY"), 2)
+        self._manual_mode = MANUAL_MODE_VAL.get(
+            intent.get("manual_control_mode", "VELOCITY"),
+            MANUAL_MODE_VAL["VELOCITY"])
         self._engage = bool(intent.get("engage", False))
         self._test_mode = {"manual": 0, "auto": 1, "sim": 2,
                            "mtr_only": 3, "ses_only": 4, "seb_only": 5}.get(
@@ -251,15 +264,21 @@ class TeleopRosBridge(Node):
     def get_operation_mode_name(self) -> str:
         return OP_MODE_NAME.get(self._operation_mode, "STOP")
 
-    def check_autoware_conflict(self) -> bool:
-        """Check if Autoware Universe is actively publishing control or planning commands."""
-        try:
-            ctrl_pubs = self.count_publishers("/control/command/control_cmd")
-            traj_pubs = self.count_publishers("/planning/scenario_planning/trajectory")
-            # In REMOTE mode, if another node publishes control_cmd (count > 1) or trajectory is active:
-            return (self._operation_mode == 3 and ctrl_pubs > 1) or traj_pubs > 0
-        except Exception:
-            return False
+    def get_vehicle_mode(self) -> tuple[str, dict]:
+        """Return (actual vehicle mode name, conflict classification).
+
+        The actual mode comes from /vehicle/status/control_mode (the real
+        AUTONOMOUS/MANUAL feedback the E-Trike bridge publishes from RT state) —
+        the codebase's authoritative 'who is driving' signal. UNKNOWN when there
+        is no (or stale) control_mode feedback.
+        """
+        snap = self.telemetry.snapshot()
+        actual = snap.get("vehicle_mode")
+        if actual is None:
+            return "UNKNOWN", {"conflict": False, "warning": False, "auto_confirmed": False}
+        return actual_mode_name(actual), classify_conflict(
+            self._operation_mode, self._engage, actual
+        )
 
     # ---- intent stream -> node ----
     def _publish_intent(self):
