@@ -96,10 +96,19 @@ Typed schemas live in `autoware_teleop_web/app/schemas.py` (Pydantic) mirrored b
 
 ## Control model
 
+- **Operation modes** (requested intent, node-enforced): `STOP` (safe),
+  `FULL` (Autoware Universe drives — teleop command publishers are **deactivated**,
+  viewing only), `SIM` (Autoware sim — viewing only), `REMOTE` (teleop drives
+  **only when ENGAGED**).
 - **Single authority** — the node is the only publisher of `/control/command/*`.
   The web bridge is a thin transport; the browser is never trusted to gate.
 - **Control lock** — `engage=false` forces zero velocity + NEUTRAL in the node
-  (LOCKED overlay in the UI). ENGAGE is required to move.
+  (LOCKED overlay in the UI). ENGAGE is required to move (REMOTE only).
+- **Conflict detection** — based on `/vehicle/status/control_mode`
+  (`ControlModeReport`) feedback, not topic-graph heuristics: **red conflict**
+  when REMOTE+engaged while the vehicle reports AUTONOMOUS; **amber warning**
+  when REMOTE+disengaged while AUTONOMOUS; **AUTO confirmed** when FULL/SIM and
+  the vehicle is AUTONOMOUS. Telemetry carries requested vs actual mode.
 - **Input mode** — `raw` (sliders) vs `keyboard` (WASD). Node ignores axes that
   aren't valid for the active mode.
 - **Authority limits** — operator-set `max_speed_forward/reverse`,

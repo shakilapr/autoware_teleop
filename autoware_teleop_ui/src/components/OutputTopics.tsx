@@ -29,7 +29,14 @@ export function OutputTopics() {
 
   const fmt = (v: number, d = 2) => (Number.isFinite(v) ? v.toFixed(d) : "—");
 
-  const rows = [
+  const rows: Array<{
+    topic: string;
+    type: string;
+    val: string;
+    live: boolean;
+    danger?: boolean;
+    planned?: boolean;
+  }> = [
     {
       topic: "/control/command/control_cmd",
       type: "autoware_control_msgs/msg/Control",
@@ -47,12 +54,14 @@ export function OutputTopics() {
       type: "autoware_vehicle_msgs/msg/TurnIndicatorsCommand",
       val: turn,
       live: !estop,
+      planned: true, // node does not yet publish this topic
     },
     {
       topic: "/control/command/hazard_lights_cmd",
       type: "autoware_vehicle_msgs/msg/HazardLightsCommand",
       val: intent.hazard ? "ON" : "OFF",
       live: !estop,
+      planned: true, // node does not yet publish this topic
     },
     {
       topic: "/control/command/emergency_cmd",
@@ -80,9 +89,15 @@ export function OutputTopics() {
             className="flex flex-col md:flex-row md:items-center justify-between gap-1.5 rounded-lg bg-zinc-950/60 px-3 py-2 font-mono text-xs border border-zinc-850"
           >
             <div className="flex items-center gap-2.5 overflow-hidden">
-              <span className={`h-2 w-2 shrink-0 rounded-full ${r.danger ? "bg-red-500 animate-ping" : r.live ? "bg-emerald-500 shadow-sm shadow-emerald-500/80" : "bg-zinc-600"}`} />
+              <span className={`h-2 w-2 shrink-0 rounded-full ${r.danger ? "bg-red-500 animate-ping" : r.live ? "bg-emerald-500 shadow-sm shadow-emerald-500/80" : r.planned ? "bg-zinc-500" : "bg-zinc-600"}`} />
               <span className="font-semibold text-blue-400">{r.topic}</span>
               <span className="hidden xl:inline text-zinc-500 text-[11px] font-sans">({r.type})</span>
+              {r.planned && (
+                <span className="rounded bg-zinc-800 px-1.5 py-0.5 text-[10px] font-semibold text-zinc-400"
+                  title="This topic is planned but the teleop node does not publish it yet">
+                  PLANNED
+                </span>
+              )}
             </div>
             <div className="font-semibold text-zinc-100 md:text-right text-left pl-4 md:pl-0">
               {r.val}

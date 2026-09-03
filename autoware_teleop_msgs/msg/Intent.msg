@@ -25,8 +25,13 @@ uint8 turn_indicator  # 0=NONE 1=LEFT 2=RIGHT (autoware_vehicle_msgs TurnIndicat
 bool hazard
 
 # Operation / manual control modes.
-uint8 operation_mode   # 0=STOP 1=FULL 2=SIM 3=REMOTE
-uint8 manual_control_mode  # 0=PEDALS 1=ACCELERATION 2=VELOCITY
+# operation_mode: 0=STOP 1=FULL (Autoware drives, viewing only) 2=SIM (viewing)
+#                 3=REMOTE (teleop drives when engaged)
+uint8 operation_mode
+# manual_control_mode: autoware_adapi_v1_msgs ManualControlMode constants
+#   (1=DISABLED 2=PEDALS 3=ACCELERATION 4=VELOCITY). Informational on the
+#   direct gateway (not yet wired to a service).
+uint8 manual_control_mode
 bool engage
 
 # Test-mode profile + bridge params (direct gateway / E-Trike bridges).
