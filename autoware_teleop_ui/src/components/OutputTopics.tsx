@@ -1,4 +1,5 @@
 import { useTeleop, streamIsStale } from "../stores/teleop";
+import { Terminal } from "lucide-react";
 
 /**
  * ROS2 command output — the /control/command/* topics this teleop node
@@ -76,7 +77,7 @@ export function OutputTopics() {
     <div className={`mt-4 rounded-xl border border-zinc-800 bg-zinc-900 p-4 shadow-md transition ${dim ? "opacity-75" : ""}`}>
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-base font-bold text-zinc-100 flex items-center gap-2">
-          <span className="h-2 w-2 rounded-full bg-purple-500" />
+          <Terminal className="w-4 h-4 text-purple-400 shrink-0" />
           ROS 2 Command Output
         </h2>
         <span className="text-xs font-medium text-zinc-400">Autoware Universe Control Interface</span>

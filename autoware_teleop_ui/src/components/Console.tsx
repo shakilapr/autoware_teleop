@@ -1,6 +1,7 @@
 import { useTeleop } from "../stores/teleop";
 import { INPUT_MODES } from "../lib/schemas";
 import { useEffect, useRef, useState } from "react";
+import { Zap, Check, Lock, AlertTriangle, Sliders, ShieldCheck } from "lucide-react";
 
 function AxisSlider({ label, value, min, max, step, onChange, accent, disabled, hint }: {
   label: string; value: number; min: number; max: number; step: number;
@@ -210,7 +211,7 @@ export function Console() {
       <div className="space-y-3.5">
         <div className="flex items-center justify-between">
           <h2 className="text-base font-bold text-zinc-100 flex items-center gap-2">
-            <span className="h-2 w-2 rounded-full bg-blue-500" />
+            <Sliders className="w-4 h-4 text-blue-500 shrink-0" />
             Drive Control
           </h2>
           <div className="flex items-center gap-2">
@@ -234,7 +235,7 @@ export function Console() {
           autowareConflict ? (
             <div className="rounded-lg border-2 border-amber-500 bg-amber-950/80 p-2.5 text-amber-200 space-y-1 shadow-md animate-pulse">
               <div className="flex items-center gap-2 font-bold text-xs text-amber-300">
-                <span className="h-2.5 w-2.5 rounded-full bg-amber-400 shrink-0" />
+                <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
                 <span>TOPIC CONFLICT: Autoware Universe Running</span>
               </div>
               <p className="text-[11px] leading-relaxed text-amber-200/90 font-sans">
@@ -245,7 +246,7 @@ export function Console() {
             <div className="flex items-center justify-between rounded-lg bg-zinc-950/60 px-3 py-1.5 border border-zinc-800 text-xs">
               <span className="text-zinc-400 text-[11px]">Autoware Status:</span>
               <span className="text-emerald-400 font-semibold text-[11px] flex items-center gap-1.5">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                <ShieldCheck className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
                 Clear · Remote Authority Active
               </span>
             </div>
@@ -258,7 +259,7 @@ export function Console() {
         <button
           onClick={toggleEngage}
           disabled={!isRemote}
-          className={`min-h-[42px] w-full rounded-lg px-4 py-2 text-sm font-bold tracking-wide transition active:scale-[0.99] ${
+          className={`min-h-[42px] flex items-center justify-center gap-2 w-full rounded-lg px-4 py-2 text-sm font-bold tracking-wide transition active:scale-[0.99] ${
             !isRemote
               ? "bg-zinc-800/80 text-zinc-400 border border-zinc-700 cursor-not-allowed opacity-70"
               : intent.engage
@@ -266,15 +267,28 @@ export function Console() {
                 : "border-2 border-emerald-500/70 bg-emerald-950/30 text-emerald-300 hover:bg-emerald-900/50 hover:border-emerald-400"
           }`}
         >
-          {!isRemote
-            ? intent.operation_mode === "FULL"
-              ? "🔒 FULL AUTONOMOUS MODE (DRIVE DISABLED)"
-              : intent.operation_mode === "SIM"
-                ? "🔒 SIMULATION MODE (DRIVE DISABLED)"
-                : "🔒 VEHICLE STOPPED (DRIVE DISABLED)"
-            : intent.engage
-              ? "✓ VEHICLE ENGAGED (CLICK TO LOCK)"
-              : "⚡ PRESS TO ENGAGE CONTROL"}
+          {!isRemote ? (
+            <>
+              <Lock className="w-4 h-4 shrink-0" />
+              <span>
+                {intent.operation_mode === "FULL"
+                  ? "FULL AUTONOMOUS MODE (DRIVE DISABLED)"
+                  : intent.operation_mode === "SIM"
+                    ? "SIMULATION MODE (DRIVE DISABLED)"
+                    : "VEHICLE STOPPED (DRIVE DISABLED)"}
+              </span>
+            </>
+          ) : intent.engage ? (
+            <>
+              <Check className="w-4 h-4 shrink-0 stroke-[3]" />
+              <span>VEHICLE ENGAGED (CLICK TO LOCK)</span>
+            </>
+          ) : (
+            <>
+              <Zap className="w-4 h-4 shrink-0 fill-current" />
+              <span>PRESS TO ENGAGE CONTROL</span>
+            </>
+          )}
         </button>
 
         <div className="relative rounded-lg p-1">

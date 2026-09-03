@@ -1,4 +1,5 @@
 import { useTeleop, streamIsStale } from "../stores/teleop";
+import { Activity, ArrowRight, AlertTriangle, AlertCircle, CheckCircle2 } from "lucide-react";
 
 const fmt = (v: number, d: number) =>
   Number.isFinite(v) ? v.toFixed(d) : "—";/** Semicircular SVG Speedometer Arc */
@@ -97,7 +98,7 @@ function SteeringGauge({ angle, maxAngle, dim }: { angle: number; maxAngle: numb
             {Number.isFinite(angle) ? `${angle.toFixed(2)} rad` : "—"}
           </div>
           <div className="text-[9px] sm:text-[10px] font-medium text-zinc-400 truncate w-full">
-            {Number.isFinite(angle) ? `${degreesVal}° ${angle < -0.02 ? "◀ L" : angle > 0.02 ? "R ▶" : "CENTER"}` : "—"}
+            {Number.isFinite(angle) ? `${degreesVal}° ${angle < -0.02 ? "LEFT" : angle > 0.02 ? "RIGHT" : "CENTER"}` : "—"}
           </div>
         </div>
       </div>
@@ -192,7 +193,7 @@ export function Dashboard() {
       <div className="space-y-3.5">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-base font-bold text-zinc-100 flex items-center gap-2">
-            <span className="h-2 w-2 rounded-full bg-emerald-500" />
+            <Activity className="w-4 h-4 text-emerald-500 shrink-0" />
             Telemetry & Feedback
           </h2>
           <div className="flex items-center gap-2 text-xs">
@@ -259,7 +260,7 @@ export function Dashboard() {
               <span className="text-zinc-400 font-sans text-[11px] sm:text-xs">Gear Match:</span>
               <div className="flex items-center gap-1.5 sm:gap-2">
                 <span className="text-zinc-400">Req <strong className="text-blue-400">{req.gear}</strong></span>
-                <span className="text-zinc-600">→</span>
+                <ArrowRight className="w-3 h-3 text-zinc-600" />
                 <span className="text-zinc-400">Act <strong className="text-emerald-400">{v.gear}</strong></span>
                 <span className={`rounded px-1.5 py-0.2 text-[10px] font-bold ${req.gear === v.gear ? "text-emerald-400" : "bg-amber-500/20 text-amber-300 animate-pulse"}`}>
                   {req.gear === v.gear ? "MATCHED" : "SHIFTING"}
@@ -299,19 +300,19 @@ export function Dashboard() {
 
         {telemetry.mode.autoware_conflict && (
           <div className="rounded-lg border border-red-600/80 bg-red-950/40 p-2.5 text-xs text-red-300 flex items-center gap-2" role="alert">
-            <span className="h-2 w-2 rounded-full bg-red-400 animate-ping shrink-0" />
+            <AlertTriangle className="w-4 h-4 text-red-400 shrink-0" />
             <span className="font-semibold">CONFLICT: Autoware is driving (AUTO) while REMOTE is engaged</span>
           </div>
         )}
         {!telemetry.mode.autoware_conflict && telemetry.mode.autoware_warning && (
           <div className="rounded-lg border border-amber-600/80 bg-amber-950/40 p-2.5 text-xs text-amber-300 flex items-center gap-2">
-            <span className="h-2 w-2 rounded-full bg-amber-400 shrink-0" />
+            <AlertCircle className="w-4 h-4 text-amber-400 shrink-0" />
             <span className="font-semibold">Autoware is driving — engaging REMOTE would conflict</span>
           </div>
         )}
         {!telemetry.mode.autoware_conflict && telemetry.mode.autoware_auto_confirmed && (
           <div className="rounded-lg border border-emerald-700/80 bg-emerald-950/40 p-2.5 text-xs text-emerald-300 flex items-center gap-2">
-            <span className="h-2 w-2 rounded-full bg-emerald-400 shrink-0" />
+            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
             <span className="font-semibold">Autoware AUTO confirmed — viewing only</span>
           </div>
         )}

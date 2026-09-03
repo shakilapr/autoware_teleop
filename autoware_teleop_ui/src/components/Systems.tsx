@@ -1,5 +1,6 @@
 import { useTeleop } from "../stores/teleop";
 import { GEAR, MANUAL_MODES, OPERATION_MODES } from "../lib/schemas";
+import { Cpu, AlertTriangle, OctagonAlert } from "lucide-react";
 
 const MODE_COLORS: Record<string, string> = {
   STOP: "bg-red-600 text-white shadow-sm font-bold border border-red-500",
@@ -60,7 +61,10 @@ function Toggle({ label, on, onClick, disabled }: {
           : "bg-zinc-800 text-zinc-300 border border-zinc-700 hover:bg-zinc-750"
       }`}
     >
-      <span>{label}</span>
+      <span className="flex items-center gap-1.5">
+        <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+        <span>{label}</span>
+      </span>
       <span className={`h-2.5 w-2.5 rounded-full shrink-0 ${on ? "bg-amber-400 shadow-sm shadow-amber-400/80" : "bg-zinc-600"}`} />
     </button>
   );
@@ -98,7 +102,7 @@ export function Systems() {
     <div className="relative flex flex-col justify-between rounded-xl border border-zinc-800 bg-zinc-900 p-4 space-y-4 shadow-md">
       <div className="space-y-4">
         <h2 className="text-base font-bold text-zinc-100 flex items-center gap-2">
-          <span className="h-2 w-2 rounded-full bg-cyan-500" />
+          <Cpu className="w-4 h-4 text-cyan-500 shrink-0" />
           Vehicle Systems
         </h2>
 
@@ -181,18 +185,20 @@ export function Systems() {
         {estopArmed ? (
           <button
             onClick={() => setEstop(false)}
-            className="min-h-[42px] w-full rounded-lg border-2 border-red-500 bg-red-950/80 px-4 py-2 text-sm font-bold text-red-200 transition hover:bg-red-900 active:scale-95 animate-pulse shadow-md"
+            className="min-h-[42px] flex items-center justify-center gap-2 w-full rounded-lg border-2 border-red-500 bg-red-950/80 px-4 py-2 text-sm font-bold text-red-200 transition hover:bg-red-900 active:scale-95 animate-pulse shadow-md"
             title="Clear emergency stop state"
           >
-            CLEAR EMERGENCY STOP (ARMED)
+            <OctagonAlert className="w-4 h-4 shrink-0 text-red-300" />
+            <span>CLEAR EMERGENCY STOP (ARMED)</span>
           </button>
         ) : (
           <button
             onClick={() => setEstop(true)}
-            className="min-h-[42px] w-full rounded-lg bg-red-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-red-500 active:scale-95 shadow-md shadow-red-600/30"
+            className="min-h-[42px] flex items-center justify-center gap-2 w-full rounded-lg bg-red-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-red-500 active:scale-95 shadow-md shadow-red-600/30"
             title="Arm vehicle emergency stop"
           >
-            EMERGENCY STOP (ESTOP)
+            <OctagonAlert className="w-4 h-4 shrink-0 text-white" />
+            <span>EMERGENCY STOP (ESTOP)</span>
           </button>
         )}
       </div>

@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { Radio } from "lucide-react";
 import { Console } from "./components/Console";
 import { Systems } from "./components/Systems";
 import { Dashboard } from "./components/Dashboard";
@@ -77,8 +78,9 @@ export default function App() {
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0 text-xs text-zinc-400">
+            <Radio className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
             <span className="hidden md:inline">Universe Extension</span>
-            <span className="rounded-full h-2.5 w-2.5 bg-emerald-500 shadow-sm shadow-emerald-500/80" />
+            <span className="rounded-full h-2 w-2 bg-emerald-500 shadow-sm shadow-emerald-500/80" />
           </div>
         </header>
 

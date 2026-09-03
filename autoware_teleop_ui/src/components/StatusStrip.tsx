@@ -1,4 +1,17 @@
 import { useTeleop } from "../stores/teleop";
+import {
+  CheckCircle2,
+  Circle,
+  AlertTriangle,
+  Activity,
+  Bot,
+  RefreshCw,
+  Square,
+  OctagonAlert,
+  ArrowRight,
+  Lock,
+  ShieldCheck,
+} from "lucide-react";
 
 export function StatusStrip() {
   const intent = useTeleop((s) => s.intent);
@@ -71,7 +84,7 @@ export function StatusStrip() {
     <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-zinc-800 bg-zinc-900 p-3 shadow-md">
       <div className="flex flex-wrap items-center gap-2.5">
         <span
-          className={`rounded-lg px-3 py-1.5 text-xs font-bold transition ${
+          className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition ${
             ready
               ? "bg-emerald-600 text-white ring-1 ring-emerald-400 shadow-sm shadow-emerald-500/20"
               : "bg-zinc-800 text-zinc-300 border border-zinc-700"
@@ -79,23 +92,41 @@ export function StatusStrip() {
           title={ready ? "Ready to drive" : readyReason}
           role="status"
         >
-          {ready ? "● READY" : "○ NOT READY"}
+          {ready ? (
+            <CheckCircle2 className="w-3.5 h-3.5 shrink-0 text-white" />
+          ) : (
+            <Circle className="w-3.5 h-3.5 shrink-0 text-zinc-400" />
+          )}
+          <span>{ready ? "READY" : "NOT READY"}</span>
         </span>
 
         <span
-          className={`rounded-lg px-3 py-1.5 text-xs font-bold transition ${txState.cls}`}
+          className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition ${txState.cls}`}
           title={`Actuation state: ${txState.label}`}
         >
-          {txState.label}
+          {estopArmed ? (
+            <OctagonAlert className="w-3.5 h-3.5 shrink-0" />
+          ) : intent.operation_mode === "FULL" ? (
+            <Bot className="w-3.5 h-3.5 shrink-0" />
+          ) : intent.operation_mode === "SIM" ? (
+            <Activity className="w-3.5 h-3.5 shrink-0" />
+          ) : intent.operation_mode === "STOP" ? (
+            <Square className="w-3 h-3 fill-current shrink-0" />
+          ) : locked ? (
+            <Lock className="w-3.5 h-3.5 shrink-0" />
+          ) : (
+            <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
+          )}
+          <span>{txState.label}</span>
         </span>
 
         <span
-          className="rounded-lg px-2.5 py-1.5 text-xs font-medium border border-zinc-700 bg-zinc-800/60 text-zinc-300"
+          className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium border border-zinc-700 bg-zinc-800/60 text-zinc-300"
           title={`Requested mode: ${intent.operation_mode} · Vehicle actual: ${m.actual_vehicle_mode} (from /vehicle/status/control_mode)`}
         >
-          {intent.operation_mode}
-          <span className="mx-1 text-zinc-600">→</span>
-          {m.actual_vehicle_mode}
+          <span>{intent.operation_mode}</span>
+          <ArrowRight className="w-3 h-3 text-zinc-500" />
+          <span>{m.actual_vehicle_mode}</span>
         </span>
 
         {conflict && (
@@ -104,8 +135,8 @@ export function StatusStrip() {
             title="CONFLICT: vehicle reports AUTONOMOUS while REMOTE is engaged — two drive authorities are fighting over /control/command/*"
             role="alert"
           >
-            <span className="h-2 w-2 rounded-full bg-red-400 shrink-0" />
-            ⚠️ TOPIC CONFLICT
+            <AlertTriangle className="w-3.5 h-3.5 text-red-400 shrink-0" />
+            <span>TOPIC CONFLICT</span>
           </span>
         )}
 
@@ -114,8 +145,8 @@ export function StatusStrip() {
             className="rounded-lg bg-amber-500/20 border border-amber-500/60 px-3 py-1.5 text-xs font-bold text-amber-300 flex items-center gap-1.5"
             title="Autoware Universe is driving (AUTO). ENGAGING REMOTE would conflict with it."
           >
-            <span className="h-2 w-2 rounded-full bg-amber-400 shrink-0" />
-            AUTOWARE DRIVING
+            <Activity className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+            <span>AUTOWARE DRIVING</span>
           </span>
         )}
 
@@ -124,17 +155,18 @@ export function StatusStrip() {
             className="rounded-lg bg-emerald-500/20 border border-emerald-500/60 px-3 py-1.5 text-xs font-bold text-emerald-300 flex items-center gap-1.5"
             title="Vehicle confirmed AUTONOMOUS — Autoware Universe is in control. Viewing only."
           >
-            <span className="h-2 w-2 rounded-full bg-emerald-400 shrink-0" />
-            AUTOWARE AUTO
+            <Bot className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+            <span>AUTOWARE AUTO</span>
           </span>
         )}
 
         {!connected && (
           <span
-            className="rounded-lg bg-amber-500/20 border border-amber-500/40 px-3 py-1.5 text-xs font-semibold text-amber-300 animate-pulse"
+            className="rounded-lg bg-amber-500/20 border border-amber-500/40 px-3 py-1.5 text-xs font-semibold text-amber-300 animate-pulse flex items-center gap-1.5"
             title="Reconnecting to backend"
           >
-            RECONNECTING{reconnectAttempts > 0 ? ` (${reconnectAttempts})` : ""}
+            <RefreshCw className="w-3 h-3 text-amber-400 animate-spin shrink-0" />
+            <span>RECONNECTING{reconnectAttempts > 0 ? ` (${reconnectAttempts})` : ""}</span>
           </span>
         )}
 
@@ -158,26 +190,29 @@ export function StatusStrip() {
         <button
           onClick={stopAll}
           title="Zero axes + neutral gear + disengage. Safe-release sent to node."
-          className="min-h-[38px] rounded-lg bg-amber-500 px-4 py-2 text-xs font-bold text-zinc-950 transition hover:bg-amber-400 active:scale-95 shadow-sm"
+          className="min-h-[38px] flex items-center gap-1.5 rounded-lg bg-amber-500 px-4 py-2 text-xs font-bold text-zinc-950 transition hover:bg-amber-400 active:scale-95 shadow-sm"
         >
-          Stop / Release
+          <Square className="w-3.5 h-3.5 fill-current shrink-0" />
+          <span>Stop / Release</span>
         </button>
 
         {estopArmed ? (
           <button
             onClick={() => setEstop(false)}
             title="Clear emergency stop state"
-            className="min-h-[38px] rounded-lg border-2 border-red-500 bg-red-950/80 px-4 py-2 text-xs font-bold text-red-200 transition hover:bg-red-900 active:scale-95 animate-pulse"
+            className="min-h-[38px] flex items-center gap-1.5 rounded-lg border-2 border-red-500 bg-red-950/80 px-4 py-2 text-xs font-bold text-red-200 transition hover:bg-red-900 active:scale-95 animate-pulse"
           >
-            CLEAR ESTOP
+            <OctagonAlert className="w-4 h-4 shrink-0 text-red-300" />
+            <span>CLEAR ESTOP</span>
           </button>
         ) : (
           <button
             onClick={() => setEstop(true)}
             title="Trigger emergency stop (disarms vehicle and holds brakes)"
-            className="min-h-[38px] rounded-lg bg-red-600 px-5 py-2 text-xs font-bold text-white transition hover:bg-red-500 active:scale-95 shadow-sm shadow-red-600/40"
+            className="min-h-[38px] flex items-center gap-1.5 rounded-lg bg-red-600 px-5 py-2 text-xs font-bold text-white transition hover:bg-red-500 active:scale-95 shadow-sm shadow-red-600/40"
           >
-            EMERGENCY STOP
+            <OctagonAlert className="w-4 h-4 shrink-0 text-white" />
+            <span>EMERGENCY STOP</span>
           </button>
         )}
       </div>
